@@ -1,0 +1,49 @@
+# systemd unit for GNU Health HIS (trytond, served via Gunicorn as recommended
+# for production in the official docs: https://docs.gnuhealth.org/his/techguide/installation/vanilla.html)
+#
+# Install:
+#   sudo cp deploy/systemd/gnuhealth.service /etc/systemd/system/gnuhealth.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now gnuhealth
+#
+# Adjust WorkingDirectory/ExecStart if `ghcontrol` created the venv at a
+# different path than the one shown below (it prints the actual path when
+# the install finishes).
+#
+# NOT YET VERIFIED against a live install: the Gunicorn WSGI target
+# ("trytond.application:app") is the standard Tryton entry point, but this
+# has not been confirmed against an actual GNU Health 5.0 ghcontrol install.
+# Run `ghcontrol status` after setup and check its output / the generated
+# start script for the exact command it uses, and correct this file to match
+# before relying on it.
+
+[Unit]
+Description=GNU Health HIS (trytond via Gunicorn)
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=gnuhealth
+Group=gnuhealth
+WorkingDirectory=/opt/gnuhealth/his-50
+Environment=TRYTOND_CONFIG=/opt/gnuhealth/his-50/trytond.conf
+ExecStart=/opt/gnuhealth/his-50/venv/bin/gunicorn \
+    --workers 3 \
+    --bind 127.0.0.1:8000 \
+    --timeout 300 \
+    "trytond.application:app"
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=gnuhealth
+
+# Basic sandboxing — trytond only needs its own working directory and the
+# ability to reach PostgreSQL over the network/socket.
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
