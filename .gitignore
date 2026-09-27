@@ -1,0 +1,12 @@
+# Real secrets/config — copy the .example file and fill in locally, never commit
+scripts/backup.env
+deploy/.env
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# OS cruft
+.DS_Store
+Thumbs.db
