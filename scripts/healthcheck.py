@@ -32,11 +32,17 @@ import urllib.error
 import urllib.request
 
 
-def check_once(url: str, timeout: float = 10.0) -> tuple[bool, str]:
-    """Perform a single health check. Returns (is_healthy, detail)."""
+def check_once(url: str, timeout: float = 10.0, method: str = "OPTIONS") -> tuple[bool, str]:
+    """Perform a single health check. Returns (is_healthy, detail).
+
+    Default method is OPTIONS, not GET: confirmed against a real running
+    GNU Health instance that its JSON-RPC backend only accepts OPTIONS/POST
+    at "/" and returns 405 on GET, even when perfectly healthy — a plain
+    GET health check would misreport a healthy server as down.
+    """
     start = time.monotonic()
     try:
-        req = urllib.request.Request(url, method="GET", headers={"User-Agent": "gnuhealth-healthcheck/1.0"})
+        req = urllib.request.Request(url, method=method, headers={"User-Agent": "gnuhealth-healthcheck/1.0"})
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             elapsed = time.monotonic() - start
             status = resp.status
@@ -86,6 +92,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--url", required=True, help="URL to check, e.g. https://your-domain.example/")
     parser.add_argument("--timeout", type=float, default=10.0)
+    parser.add_argument(
+        "--method",
+        default="OPTIONS",
+        help="HTTP method to check with (default: OPTIONS — see check_once docstring for why)",
+    )
     parser.add_argument("--webhook", default=None, help="Optional webhook URL to notify on state change")
     parser.add_argument(
         "--state-file",
@@ -96,7 +107,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    is_healthy, detail = check_once(args.url, timeout=args.timeout)
+    is_healthy, detail = check_once(args.url, timeout=args.timeout, method=args.method)
     new_state = "up" if is_healthy else "down"
 
     print(f"[{'OK' if is_healthy else 'FAIL'}] {args.url} — {detail}")

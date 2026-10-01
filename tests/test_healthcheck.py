@@ -17,9 +17,20 @@ from healthcheck import check_once, main, read_last_state, write_state  # noqa: 
 
 
 class _Handler(http.server.BaseHTTPRequestHandler):
+    """Mimics real trytond behavior: only OPTIONS/POST are meaningful at "/";
+    confirmed against an actual running GNU Health instance, which returns
+    405 on GET even when healthy. do_GET is still implemented, used by the
+    tests that specifically check non-default-method behavior.
+    """
+
     status_code = 200
 
     def do_GET(self):  # noqa: N802 (stdlib method name)
+        self.send_response(self.status_code)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def do_OPTIONS(self):  # noqa: N802
         self.send_response(self.status_code)
         self.send_header("Content-Length", "0")
         self.end_headers()
@@ -81,6 +92,33 @@ def test_check_once_reports_healthy_on_200(healthy_server):
     ok, detail = check_once(url, timeout=2.0)
     assert ok is True
     assert "HTTP 200" in detail
+
+
+def test_default_method_is_options_not_get(healthy_server):
+    # Regression test for a real bug: a server that only implements OPTIONS
+    # at "/" (like real trytond) must be reported healthy by default.
+    class _OptionsOnlyHandler(http.server.BaseHTTPRequestHandler):
+        def do_OPTIONS(self):  # noqa: N802
+            self.send_response(204)
+            self.end_headers()
+
+        def do_GET(self):  # noqa: N802
+            self.send_response(405)
+            self.end_headers()
+
+        def log_message(self, format, *args):  # noqa: A002
+            pass
+
+    server = _run_server(_OptionsOnlyHandler)
+    try:
+        url = f"http://127.0.0.1:{server.server_port}/"
+        ok, detail = check_once(url, timeout=2.0)  # default method
+        assert ok is True, f"expected OPTIONS default to succeed, got: {detail}"
+        # Confirm this isn't a coincidence: GET against the same server fails.
+        ok_get, _ = check_once(url, timeout=2.0, method="GET")
+        assert ok_get is False
+    finally:
+        server.shutdown()
 
 
 def test_check_once_reports_unhealthy_on_500(unhealthy_server):
