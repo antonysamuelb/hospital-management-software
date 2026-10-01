@@ -10,12 +10,15 @@
 # different path than the one shown below (it prints the actual path when
 # the install finishes).
 #
-# NOT YET VERIFIED against a live install: the Gunicorn WSGI target
-# ("trytond.application:app") is the standard Tryton entry point, but this
-# has not been confirmed against an actual GNU Health 5.0 ghcontrol install.
-# Run `ghcontrol status` after setup and check its output / the generated
-# start script for the exact command it uses, and correct this file to match
-# before relying on it.
+# WSGI target CONFIRMED against a live instance (deploy/dev/ test harness):
+# `python3 -c "import trytond.application as a; print(dir(a))"` shows the
+# 'app' callable actually exists in trytond.application, and the server
+# in deploy/dev/ was reached successfully through it. Still built via pip
+# install directly (trytond + gnuhealth-all-modules), not through
+# `ghcontrol` itself — ghcontrol turned out to be a curses TUI with no
+# unattended install path (see scripts/backup.sh's header for how that was
+# confirmed) — so if you install via ghcontrol specifically, double check
+# its generated venv path matches WorkingDirectory/ExecStart below.
 
 [Unit]
 Description=GNU Health HIS (trytond via Gunicorn)

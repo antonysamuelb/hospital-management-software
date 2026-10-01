@@ -21,8 +21,12 @@ deploy/
   provision.sh            OS-level VM setup: PostgreSQL, Nginx, firewall, users
   nginx/gnuhealth.conf     Reverse proxy + TLS config template
   systemd/gnuhealth.service   Runs trytond via Gunicorn
+  dev/                     Local Docker test harness (NOT the production path —
+                            see deploy/dev/README.md). Used to actually run
+                            GNU Health end-to-end and prove the scripts below
+                            against a real instance instead of assumptions.
 scripts/
-  backup.sh                Nightly backup: ghcontrol backup -> rclone -> retention
+  backup.sh                Nightly backup: pg_dump -Fc + attach dir -> rclone -> retention
   backup_retention.py       Retention policy logic (unit tested)
   backup.env.example        Copy to backup.env and fill in (gitignored)
   healthcheck.py            Uptime check + webhook alerting (tested end-to-end)
@@ -30,7 +34,7 @@ tools/
   validate_deploy_configs.py   Structural validation for the deploy/ configs
 tests/
   test_backup_retention.py  8 tests, pure logic, no external dependencies
-  test_healthcheck.py       8 tests, spin up real local HTTP servers
+  test_healthcheck.py       9 tests, spin up real local HTTP servers
 ```
 
 ### Status: what's actually verified vs. what still needs the real VM
@@ -42,16 +46,24 @@ different things:
 
 | Component | How it was tested | Result |
 |---|---|---|
-| `backup_retention.py` | Real unit tests (`pytest tests/test_backup_retention.py`) — no mocks, pure logic | 8/8 passing. Caught and fixed 2 real bugs (cross-database retention collision, and an ancient backup that would've survived forever) |
-| `healthcheck.py` | Real end-to-end tests — spins up actual local HTTP servers and a webhook receiver (`pytest tests/test_healthcheck.py`) | 8/8 passing, plus manually smoke-tested via CLI |
-| `deploy/nginx/gnuhealth.conf`, `deploy/systemd/gnuhealth.service`, `deploy/provision.sh` | Structural validation (`python tools/validate_deploy_configs.py`) + `bash -n` syntax check | Passing, but **not** run through real `nginx -t` or actually started by systemd — neither nginx, systemd, Docker, nor WSL is available in the environment this was built in, and installing them would mean changing system settings, which needs your go-ahead first (see below) |
-| `scripts/backup.sh` | `bash -n` syntax check only | Calls `ghcontrol` and `rclone`, neither of which can run without a real GNU Health install — untested beyond syntax until the VM exists |
+| `backup_retention.py` | Real unit tests (`pytest tests/test_backup_retention.py`) — no mocks, pure logic | 9/9 passing. Caught and fixed 2 real bugs (cross-database retention collision, and an ancient backup that would've survived forever) |
+| `healthcheck.py` | Real end-to-end tests (local HTTP servers) **+ run against an actual live GNU Health instance** | 9/9 passing. Caught a real bug: defaulted to GET, but trytond returns 405 on GET at "/" even when healthy (it's JSON-RPC only) — fixed to default to OPTIONS, confirmed against the live server (HTTP 204) |
+| GNU Health itself (`deploy/dev/`) | **Actually installed and run in Docker**: trytond 7.0.57 + 67 health_* modules, PostgreSQL 15, server started and reachable | Confirmed working. Also surfaced that GNU Health has no official Docker support and `ghcontrol` is a curses TUI with no unattended-install flags — findings fed back into `scripts/backup.sh` and this README |
+| **Patient lookup by ID / phone** (the original requirement this whole project started from) | `deploy/dev/test_patient_lookup.py`, run against the live instance via `proteus` (Tryton's own scripting client) | **Passing against real data**: created a test patient, confirmed lookup by internal id, by GNU Health's auto-generated PUID (e.g. `QAN111KTI`), and by phone number (`party.contact_mechanisms`) all work |
+| **Backup + restore** | `pg_dump --format=custom` on the live DB, restored into a fresh database, re-queried via a new server connection | **Passing**: the same patient (PUID, phone) was present and correct in the restored database. The exact archive filename `backup.sh` produces was also confirmed to parse correctly under `backup_retention.py`'s regex |
+| `deploy/nginx/gnuhealth.conf`, `deploy/provision.sh` | Structural validation (`python tools/validate_deploy_configs.py`) + `bash -n` syntax check | Passing. Still **not** run through real `nginx -t` or `provision.sh` on an actual VM — that needs the real cloud host from phase 1, not something further local testing can close |
+| `deploy/systemd/gnuhealth.service` | WSGI entry point (`trytond.application:app`) confirmed correct against the live instance | The module/callable is verified; the exact venv path still depends on how you installed (this repo's dev harness used a direct pip install, not `ghcontrol`'s own convention — noted in the file) |
+| `scripts/backup.sh` | `bash -n` syntax check + its `pg_dump`/tar logic proven directly (see Backup+restore row) | The `rclone sync` step itself is untested (needs a real Backblaze B2 account) — `rclone` is a mature, widely-used tool, so this is a much smaller risk than the custom logic, which is now proven |
 
 To re-run all of the above yourself at any point:
 ```bash
 python -m pytest tests/ -v
 python tools/validate_deploy_configs.py
 bash -n deploy/provision.sh scripts/backup.sh
+
+# Full local GNU Health instance (needs Docker):
+cd deploy/dev && docker compose up -d
+# then see deploy/dev/test_patient_lookup.py for a working example
 ```
 
 ## Next steps, in sequence
@@ -67,21 +79,24 @@ bash -n deploy/provision.sh scripts/backup.sh
 - [ ] Restrict SSH to your known IP(s), or set up a VPN gate.
 - [ ] (Optional but recommended) Set up **WireGuard VPN** so staff access the app through the VPN rather than the open internet — not scripted yet, flag if you want this done before go-live.
 
-### 3. Deploy GNU Health — 🟡 configs ready, one step is inherently manual
+### 3. Deploy GNU Health — 🟡 configs ready and proven in Docker; one step is inherently manual on the real VM
 - [x] `deploy/nginx/gnuhealth.conf` — reverse proxy + TLS-ready Nginx config, prepared for `certbot --nginx`.
-- [x] `deploy/systemd/gnuhealth.service` — runs trytond via Gunicorn on boot/crash-restart. **Flagged unverified**: the exact Gunicorn WSGI entry point needs confirming against a real `ghcontrol` install (noted in the file itself).
+- [x] `deploy/systemd/gnuhealth.service` — runs trytond via Gunicorn. WSGI target (`trytond.application:app`) **confirmed correct** against a live instance.
+- [x] Confirmed the actual install (`pip install gnuhealth-all-modules`) resolves cleanly: trytond 7.0.57 + 67 `health_*` modules, and the real module names needed for `trytond-admin -u` (`health`, `health_inpatient` for bed management, etc.) — see `deploy/dev/`.
+- [x] Confirmed GNU Health auto-creates the `gnuhealth.patient` record when a party is saved with `is_patient=True` — don't create one explicitly (GNU Health will refuse it as a duplicate).
+- [ ] **Known gap found during testing, not yet addressed**: the trytond server only serves JSON-RPC — there is no HTML web UI at `/`. GNU Health's actual browser-based interface ("Sao") is a separate static web client that isn't part of the `gnuhealth-all-modules` pip install and isn't yet accounted for anywhere in `deploy/`. Staff need *something* to click around in day-to-day — this needs research before phase 8 (go-live).
 - [ ] Point a domain name at the VM (~$1/month amortized) for clean HTTPS access.
-- [ ] Run `ghcontrol` **by hand, once** — as of GNU Health 5.0 this is an interactive menu tool (choose "Install GNU Health HIS", then "Create a new DB instance"), so it can't be scripted from here. Exact steps are printed at the end of `provision.sh`.
+- [ ] Run `ghcontrol` **by hand, once** — confirmed it's a curses TUI (full-screen terminal menu) with no CLI flags for unattended install, so it genuinely can't be scripted from here. Exact steps are printed at the end of `provision.sh`. (Alternative, also proven to work: install directly via `pip install gnuhealth-all-modules` + `trytond-admin -u health health_inpatient --activate-dependencies -p`, bypassing `ghcontrol` entirely — this is what `deploy/dev/` actually does.)
 - [ ] Create the initial admin user and lock down default credentials.
-- [ ] Correct `gnuhealth.service`'s WSGI entry point against what `ghcontrol` actually generated, then `sudo certbot --nginx -d your-domain.example`.
+- [ ] `sudo certbot --nginx -d your-domain.example`.
 
-### 4. Backups — 🟡 scripted and unit-tested, needs the VM + a B2 account to run end-to-end
-- [x] `scripts/backup.sh` wraps the official `ghcontrol backup` command + `rclone sync` to Backblaze B2, then applies retention.
-- [x] `scripts/backup_retention.py` — retention policy (30 daily + 12 monthly, per-database), **8 unit tests passing**, caught 2 real bugs during development (see Status table above).
-- [ ] Create a Backblaze B2 account + application key (not your master key), `rclone config` it, fill in `scripts/backup.env` from the `.example`.
+### 4. Backups — 🟢 proven end-to-end against real data, needs the VM + a B2 account for the offsite leg
+- [x] `scripts/backup.sh` — **rewritten** after testing revealed `ghcontrol backup` isn't a real CLI command (ghcontrol is curses-only; its own backup menu option is just `pg_dump` under the hood, confirmed by reading its source). Now does `pg_dump --format=custom` + tars the attachment directory + `rclone sync` to Backblaze B2 + retention.
+- [x] `scripts/backup_retention.py` — retention policy (30 daily + 12 monthly, per-database), **9 unit tests passing**.
+- [x] **Full backup+restore cycle proven on real data**: created a test patient, backed up with `pg_dump -Fc`, restored into a fresh database, reconnected and confirmed the exact same patient (PUID, phone number) was intact. The real archive filename was also confirmed to parse correctly under the retention regex.
+- [ ] Create a Backblaze B2 account + application key (not your master key), `rclone config` it, fill in `scripts/backup.env` from the `.example`. (The `rclone sync` leg itself is the only untested part — needs real B2 credentials.)
 - [ ] Wire `backup.sh` into cron (`0 2 * * *`, example line is in the script's header comment).
-- [ ] **Test a restore** — an untested backup isn't a backup. Not scriptable in advance; do this once real data exists.
-- [ ] Schedule a recurring quarterly restore-test reminder.
+- [ ] Schedule a recurring quarterly restore-test reminder (the mechanism is proven; this is about *keeping* it proven as real data accumulates).
 
 ### 5. Connectivity resilience (mitigating the "fully cloud, no local fallback" risk) — 🔴 blocked on you (physical/on-site)
 - [ ] Set up **dual-WAN failover** at the hospital site (primary broadband + 4G/5G backup router).
@@ -94,11 +109,12 @@ bash -n deploy/provision.sh scripts/backup.sh
 - [ ] Optionally also set up UptimeRobot (or similar) as a second, independent external check.
 - [ ] Set up log rotation for the trytond/Nginx logs (`logrotate` config not yet written — small, can do once the VM exists).
 
-### 7. Data & configuration — 🔴 blocked on a running GNU Health instance
-- [ ] Configure patient registration to support lookup by **patient ID and phone number**.
+### 7. Data & configuration — 🟢 core requirement proven; rest blocked on the real instance
+- [x] **Patient lookup by ID and phone number — the original requirement — confirmed working** against a live instance (`deploy/dev/test_patient_lookup.py`): by internal id, by GNU Health's auto-generated PUID, and by phone number via `party.contact_mechanisms`.
+- [ ] `health_inpatient` module (bed/ward management) is installed and activated in the test harness, but not yet configured for an actual 10-bed layout — that's real data entry, not scriptable in advance.
 - [ ] Set up user roles/permissions for hospital staff (reception, nurses, doctors, pharmacy, admin).
-- [ ] Configure the bed/ward module for the 10-bed inpatient setup.
 - [ ] Import or set up any existing patient records (if migrating from paper/another system).
+- [ ] Resolve the Sao web-client gap noted in phase 3 — staff need a UI, not just an API.
 
 ### 8. Go-live — 🔴 blocked on you (organizational/on-site)
 - [ ] Train staff on registration, patient lookup, and daily workflows.
@@ -113,8 +129,7 @@ bash -n deploy/provision.sh scripts/backup.sh
 ## Open questions
 - Is the hospital a registered nonprofit/trust (relevant for cloud credit eligibility)?
 - Who will own day-to-day operations/maintenance of the server long-term?
-- Want deeper local testing before this touches a real VM? I could validate the
-  full stack (actually installing GNU Health, starting it, hitting it with
-  `healthcheck.py`, running a real backup/restore cycle) locally first — but
-  that needs Docker Desktop or WSL2 installed, which changes system settings
-  on this machine, so I won't do it without you saying go ahead.
+- **New, from testing**: GNU Health's actual web UI ("Sao") isn't part of the
+  server-side install and isn't accounted for in `deploy/` yet — needs research
+  before go-live (see phase 3/7 above). Worth deciding whether that's a separate
+  static client to build/serve, or whether to reconsider the UI story entirely.
