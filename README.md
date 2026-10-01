@@ -84,7 +84,7 @@ cd deploy/dev && docker compose up -d
 - [x] `deploy/systemd/gnuhealth.service` — runs trytond via Gunicorn. WSGI target (`trytond.application:app`) **confirmed correct** against a live instance.
 - [x] Confirmed the actual install (`pip install gnuhealth-all-modules`) resolves cleanly: trytond 7.0.57 + 67 `health_*` modules, and the real module names needed for `trytond-admin -u` (`health`, `health_inpatient` for bed management, etc.) — see `deploy/dev/`.
 - [x] Confirmed GNU Health auto-creates the `gnuhealth.patient` record when a party is saved with `is_patient=True` — don't create one explicitly (GNU Health will refuse it as a duplicate).
-- [ ] **Known gap found during testing, not yet addressed**: the trytond server only serves JSON-RPC — there is no HTML web UI at `/`. GNU Health's actual browser-based interface ("Sao") is a separate static web client that isn't part of the `gnuhealth-all-modules` pip install and isn't yet accounted for anywhere in `deploy/`. Staff need *something* to click around in day-to-day — this needs research before phase 8 (go-live).
+- [x] **Web UI gap (found during testing) — now resolved.** The trytond server only serves JSON-RPC by itself; GNU Health's actual browser UI ("Sao") is a separate npm package (`tryton-sao`), not part of `gnuhealth-all-modules`. Fixed in `deploy/dev/app/Dockerfile`: a multi-stage build installs `tryton-sao@7.0.58` (npm's `series-7.0` tag, matching our trytond 7.0.57) and copies its pre-built `index.html`/`dist/*.js` into the image; `trytond.conf`'s `[web] root = ...` then serves it directly from the same port — no separate web server needed. **Proven in an actual browser**, not just curl: logged in, navigated Party → Health → Patients, and saw the real patient record (PUID `QAN111KTI`, Gender Female) rendered in the genuine GNU Health UI. Screenshot: `deploy/dev/screenshots/sao-patients-list.jpg`. Still needs porting from `deploy/dev/`'s Docker-based setup into the production `provision.sh`/`nginx`/`systemd` path (that install isn't Docker — see phase 3's other items).
 - [ ] Point a domain name at the VM (~$1/month amortized) for clean HTTPS access.
 - [ ] Run `ghcontrol` **by hand, once** — confirmed it's a curses TUI (full-screen terminal menu) with no CLI flags for unattended install, so it genuinely can't be scripted from here. Exact steps are printed at the end of `provision.sh`. (Alternative, also proven to work: install directly via `pip install gnuhealth-all-modules` + `trytond-admin -u health health_inpatient --activate-dependencies -p`, bypassing `ghcontrol` entirely — this is what `deploy/dev/` actually does.)
 - [ ] Create the initial admin user and lock down default credentials.
@@ -114,7 +114,7 @@ cd deploy/dev && docker compose up -d
 - [ ] `health_inpatient` module (bed/ward management) is installed and activated in the test harness, but not yet configured for an actual 10-bed layout — that's real data entry, not scriptable in advance.
 - [ ] Set up user roles/permissions for hospital staff (reception, nurses, doctors, pharmacy, admin).
 - [ ] Import or set up any existing patient records (if migrating from paper/another system).
-- [ ] Resolve the Sao web-client gap noted in phase 3 — staff need a UI, not just an API.
+- [x] Web UI (Sao) now proven working in-browser — see phase 3. Not yet ported to the production (non-Docker) install path.
 
 ### 8. Go-live — 🔴 blocked on you (organizational/on-site)
 - [ ] Train staff on registration, patient lookup, and daily workflows.
@@ -129,7 +129,8 @@ cd deploy/dev && docker compose up -d
 ## Open questions
 - Is the hospital a registered nonprofit/trust (relevant for cloud credit eligibility)?
 - Who will own day-to-day operations/maintenance of the server long-term?
-- **New, from testing**: GNU Health's actual web UI ("Sao") isn't part of the
-  server-side install and isn't accounted for in `deploy/` yet — needs research
-  before go-live (see phase 3/7 above). Worth deciding whether that's a separate
-  static client to build/serve, or whether to reconsider the UI story entirely.
+- `deploy/dev/`'s Dockerfile now builds the Sao web client correctly, but the
+  production path (`provision.sh` + `nginx` + `systemd`, not Docker) doesn't
+  install it yet — needs porting: `npm install tryton-sao@7.0.58` into a
+  directory on the VM, then `trytond.conf`'s `[web] root = ...` pointed at it,
+  same as the dev harness does.

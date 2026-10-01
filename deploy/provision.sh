@@ -49,7 +49,11 @@ apt-get install -y \
   python3-certbot-nginx \
   ufw \
   unattended-upgrades \
-  fail2ban
+  fail2ban \
+  nodejs \
+  npm \
+  git \
+  ca-certificates
 
 log "Creating the ${GNUHEALTH_USER} system user"
 if ! id -u "${GNUHEALTH_USER}" >/dev/null 2>&1; then
@@ -98,8 +102,21 @@ Provisioning complete. Manual steps remaining (see deploy/README.md):
   3. pip install gnuhealth-control
   4. ghcontrol            # choose "0: Install GNU Health HIS", then
                            # "1: Create a new DB instance"
-  5. Point your domain's DNS A record at this server's public IP
-  6. sudo certbot --nginx -d your-domain.example   # after copying
+
+  5. Web UI (Sao) — confirmed working this way in deploy/dev/, proven in an
+     actual browser, not just by install succeeding:
+       cd /opt/gnuhealth
+       npm install tryton-sao@7.0.58 --production --legacy-peer-deps
+       # pin the version to match your trytond release's "series-X.Y" npm
+       # dist-tag — check with: npm view tryton-sao dist-tags
+     Then add this line to the [web] section of trytond.conf
+     (/opt/gnuhealth/his-50/trytond.conf, alongside "listen = ..."):
+       root = /opt/gnuhealth/node_modules/tryton-sao
+     Restart the service after editing. Without this, the server only
+     answers JSON-RPC and GET / returns 405 — there is no browser UI.
+
+  6. Point your domain's DNS A record at this server's public IP
+  7. sudo certbot --nginx -d your-domain.example   # after copying
                            # deploy/nginx/gnuhealth.conf into place
 ==============================================================================
 EOF
