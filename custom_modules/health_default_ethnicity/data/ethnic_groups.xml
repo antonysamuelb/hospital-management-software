@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+Adds "South Asian" to GNU Health's stock gnuhealth.ethnicity list, which is
+otherwise US-census-derived (Black/Asian/White/Hispanic/"Indian American"/
+Native American — see health/data/ethnic_groups.xml) and has no category
+that actually fits most patients at this hospital. Same XML format as
+that file, deliberately, so this reads as "one more entry" rather than a
+parallel convention.
+
+noupdate="0" matches the upstream file: this record is allowed to be
+re-synced on module update if ever changed here, rather than frozen after
+first install.
+-->
+
+<tryton>
+    <data noupdate="0">
+
+        <record model="gnuhealth.ethnicity" id="south_asian">
+            <field name="name">South Asian</field>
+            <field name="code">SOUTHASIAN</field>
+        </record>
+
+    </data>
+</tryton>

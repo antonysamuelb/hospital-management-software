@@ -30,6 +30,10 @@ scripts/
   backup_retention.py       Retention policy logic (unit tested)
   backup.env.example        Copy to backup.env and fill in (gitignored)
   healthcheck.py            Uptime check + webhook alerting (tested end-to-end)
+custom_modules/
+  health_default_ethnicity  Site customization: adds "South Asian" to GNU
+                             Health's US-census-derived ethnicity list and
+                             defaults new patients to it. See custom_modules/README.md
 tools/
   validate_deploy_configs.py   Structural validation for the deploy/ configs
 tests/
@@ -51,6 +55,7 @@ different things:
 | GNU Health itself (`deploy/dev/`) | **Actually installed and run in Docker**: trytond 7.0.57 + 67 health_* modules, PostgreSQL 15, server started and reachable | Confirmed working. Also surfaced that GNU Health has no official Docker support and `ghcontrol` is a curses TUI with no unattended-install flags — findings fed back into `scripts/backup.sh` and this README |
 | **Patient lookup by ID / phone** (the original requirement this whole project started from) | `deploy/dev/test_patient_lookup.py` (API, via `proteus`) **+ manually verified in the actual browser UI** | **Passing both ways.** API: created a test patient, confirmed lookup by internal id, PUID, and phone number. UI: the Patients list's search box correctly filters by full phone number, **partial** phone number (last 4 digits), PUID, and name — see `deploy/dev/docs/searching-for-a-patient.md` |
 | **Backup + restore** | `pg_dump --format=custom` on the live DB, restored into a fresh database, re-queried via a new server connection | **Passing**: the same patient (PUID, phone) was present and correct in the restored database. The exact archive filename `backup.sh` produces was also confirmed to parse correctly under `backup_retention.py`'s regex |
+| `custom_modules/health_default_ethnicity` (adds "South Asian" ethnicity, defaults new patients to it) | Activated on a **completely fresh** database (`docker compose down -v && up -d`), confirmed via API (`default_ethnic_group()` returns the right record) **and visually in the Sao UI** (new-patient dialog shows "Ethnicity: South Asian" pre-filled) | **Passing.** Wired into `deploy/dev/`'s Dockerfile/entrypoint automatically; **not yet ported to the production (non-Docker) install** — manual steps documented in `custom_modules/README.md` |
 | `deploy/nginx/gnuhealth.conf`, `deploy/provision.sh` | Structural validation (`python tools/validate_deploy_configs.py`) + `bash -n` syntax check | Passing. Still **not** run through real `nginx -t` or `provision.sh` on an actual VM — that needs the real cloud host from phase 1, not something further local testing can close |
 | `deploy/systemd/gnuhealth.service` | WSGI entry point (`trytond.application:app`) confirmed correct against the live instance | The module/callable is verified; the exact venv path still depends on how you installed (this repo's dev harness used a direct pip install, not `ghcontrol`'s own convention — noted in the file) |
 | `scripts/backup.sh` | `bash -n` syntax check + its `pg_dump`/tar logic proven directly (see Backup+restore row) | The `rclone sync` step itself is untested (needs a real Backblaze B2 account) — `rclone` is a mature, widely-used tool, so this is a much smaller risk than the custom logic, which is now proven |
@@ -124,6 +129,7 @@ number — works in the real UI, not just via the API.
 - [ ] Set up user roles/permissions for hospital staff (reception, nurses, doctors, pharmacy, admin).
 - [ ] Import or set up any existing patient records (if migrating from paper/another system).
 - [x] Web UI (Sao) now proven working in-browser — see phase 3. Not yet ported to the production (non-Docker) install path.
+- [x] **Ethnicity list localized** — added "South Asian" (GNU Health's stock list is US-census-derived and had nothing appropriate) and set it as the default for new patients. Proven on a fresh database, both via the API and visually in the UI. See `custom_modules/health_default_ethnicity/` and `custom_modules/README.md`. Not yet ported to the production (non-Docker) install path — manual steps documented there.
 
 ### 8. Go-live — 🔴 blocked on you (organizational/on-site)
 - [ ] Train staff on registration, patient lookup, and daily workflows.

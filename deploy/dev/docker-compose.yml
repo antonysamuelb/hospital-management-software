@@ -16,7 +16,12 @@ services:
       - gnuhealth-dev-db:/var/lib/postgresql/data
 
   app:
-    build: ./app
+    build:
+      # Context is the repo root (not ./app) so the Dockerfile can also
+      # reach custom_modules/ at the repo root — needed for the site
+      # customization module (default ethnicity). See its COPY line below.
+      context: ../..
+      dockerfile: deploy/dev/app/Dockerfile
     depends_on:
       db:
         condition: service_healthy

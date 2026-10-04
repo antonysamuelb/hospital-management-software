@@ -30,8 +30,18 @@ RUN pip install --no-cache-dir gnuhealth-all-modules gunicorn
 
 WORKDIR /opt/gnuhealth
 COPY --from=sao /sao/node_modules/tryton-sao /opt/gnuhealth/sao
-COPY trytond.conf /opt/gnuhealth/trytond.conf
-COPY entrypoint.sh /opt/gnuhealth/entrypoint.sh
+COPY deploy/dev/app/trytond.conf /opt/gnuhealth/trytond.conf
+COPY deploy/dev/app/entrypoint.sh /opt/gnuhealth/entrypoint.sh
+
+# Site customization: adds "South Asian" to GNU Health's stock (US-census
+# -derived) ethnicity list and defaults new patients to it. See
+# custom_modules/health_default_ethnicity/party.py for why. Dropped
+# directly into trytond's modules namespace package — confirmed this
+# works without a separate pip install, same as any other trytond module
+# discovered via that namespace.
+COPY custom_modules/health_default_ethnicity \
+    /usr/local/lib/python3.11/site-packages/trytond/modules/health_default_ethnicity
+
 RUN chmod +x /opt/gnuhealth/entrypoint.sh \
     && mkdir -p /opt/gnuhealth/attach /opt/gnuhealth/backup
 
