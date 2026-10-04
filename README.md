@@ -49,7 +49,7 @@ different things:
 | `backup_retention.py` | Real unit tests (`pytest tests/test_backup_retention.py`) — no mocks, pure logic | 9/9 passing. Caught and fixed 2 real bugs (cross-database retention collision, and an ancient backup that would've survived forever) |
 | `healthcheck.py` | Real end-to-end tests (local HTTP servers) **+ run against an actual live GNU Health instance** | 9/9 passing. Caught a real bug: defaulted to GET, but trytond returns 405 on GET at "/" even when healthy (it's JSON-RPC only) — fixed to default to OPTIONS, confirmed against the live server (HTTP 204) |
 | GNU Health itself (`deploy/dev/`) | **Actually installed and run in Docker**: trytond 7.0.57 + 67 health_* modules, PostgreSQL 15, server started and reachable | Confirmed working. Also surfaced that GNU Health has no official Docker support and `ghcontrol` is a curses TUI with no unattended-install flags — findings fed back into `scripts/backup.sh` and this README |
-| **Patient lookup by ID / phone** (the original requirement this whole project started from) | `deploy/dev/test_patient_lookup.py`, run against the live instance via `proteus` (Tryton's own scripting client) | **Passing against real data**: created a test patient, confirmed lookup by internal id, by GNU Health's auto-generated PUID (e.g. `QAN111KTI`), and by phone number (`party.contact_mechanisms`) all work |
+| **Patient lookup by ID / phone** (the original requirement this whole project started from) | `deploy/dev/test_patient_lookup.py` (API, via `proteus`) **+ manually verified in the actual browser UI** | **Passing both ways.** API: created a test patient, confirmed lookup by internal id, PUID, and phone number. UI: the Patients list's search box correctly filters by full phone number, **partial** phone number (last 4 digits), PUID, and name — see `deploy/dev/docs/searching-for-a-patient.md` |
 | **Backup + restore** | `pg_dump --format=custom` on the live DB, restored into a fresh database, re-queried via a new server connection | **Passing**: the same patient (PUID, phone) was present and correct in the restored database. The exact archive filename `backup.sh` produces was also confirmed to parse correctly under `backup_retention.py`'s regex |
 | `deploy/nginx/gnuhealth.conf`, `deploy/provision.sh` | Structural validation (`python tools/validate_deploy_configs.py`) + `bash -n` syntax check | Passing. Still **not** run through real `nginx -t` or `provision.sh` on an actual VM — that needs the real cloud host from phase 1, not something further local testing can close |
 | `deploy/systemd/gnuhealth.service` | WSGI entry point (`trytond.application:app`) confirmed correct against the live instance | The module/callable is verified; the exact venv path still depends on how you installed (this repo's dev harness used a direct pip install, not `ghcontrol`'s own convention — noted in the file) |
@@ -68,9 +68,12 @@ cd deploy/dev && docker compose up -d
 
 **Want to click around in the actual app yourself?** See
 [`deploy/dev/README.md`](deploy/dev/README.md#starting-it) for exact startup
-steps and login credentials, and
+steps and login credentials,
 [`deploy/dev/docs/registering-a-patient.md`](deploy/dev/docs/registering-a-patient.md)
-for a verified walkthrough of registering a patient through the UI.
+for a verified walkthrough of registering a patient through the UI, and
+[`deploy/dev/docs/searching-for-a-patient.md`](deploy/dev/docs/searching-for-a-patient.md)
+confirming the original requirement — searching by patient ID or phone
+number — works in the real UI, not just via the API.
 
 ## Next steps, in sequence
 

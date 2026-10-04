@@ -64,3 +64,8 @@ Tab to move off it is the most reliable method found during testing.
 list after this walkthrough, showing both the test patient from earlier
 automated testing (PUID `QAN111KTI`) and "Ramesh Kumar" registered via this
 walkthrough (PUID `GUX953CGG`).
+
+## Next: finding this patient again
+
+See [`searching-for-a-patient.md`](searching-for-a-patient.md) — confirms
+you can look this patient up again by phone number, PUID, or name.
