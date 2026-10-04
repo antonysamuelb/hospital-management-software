@@ -5,6 +5,9 @@ trytond 7.0.57), not written from documentation. Two real UI quirks are
 called out below because they'll trip you up otherwise — they're GNU
 Health/Sao's own behavior, not something specific to this setup.
 
+Not running yet? See [`deploy/dev/README.md`](../README.md#starting-it) for
+how to start the stack first.
+
 ## Steps
 
 1. Log in at `http://localhost:8000/` — Database `gnuhealth_test`, your admin

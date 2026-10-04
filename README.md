@@ -66,6 +66,12 @@ cd deploy/dev && docker compose up -d
 # then see deploy/dev/test_patient_lookup.py for a working example
 ```
 
+**Want to click around in the actual app yourself?** See
+[`deploy/dev/README.md`](deploy/dev/README.md#starting-it) for exact startup
+steps and login credentials, and
+[`deploy/dev/docs/registering-a-patient.md`](deploy/dev/docs/registering-a-patient.md)
+for a verified walkthrough of registering a patient through the UI.
+
 ## Next steps, in sequence
 
 ### 1. Pick and provision the VM — 🔴 blocked on you (needs account creation/payment)
