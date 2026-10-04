@@ -29,7 +29,8 @@ hospital. This module adds **South Asian** and defaults new patients to it.
   a brand-new `party.party()` correctly defaults `ethnic_group` to it —
   confirmed via the API.
 - Confirmed visually in the actual Sao UI: the "New Patient" quick-create
-  dialog shows **Ethnicity: South Asian** pre-filled, not blank.
+  dialog shows **Ethnicity: South Asian** pre-filled, not blank. Screenshot:
+  `health_default_ethnicity/verified-in-ui.jpg`.
 - One real gotcha hit during development: a module activated via
   `trytond-admin` doesn't take effect in an *already-running* `trytond`
   server process — that process has the old Pool loaded in memory and
