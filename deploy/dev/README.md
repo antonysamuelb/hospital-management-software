@@ -27,7 +27,7 @@ Then open **http://localhost:8000/** in a browser and log in:
 | Field | Value |
 |---|---|
 | Database | `gnuhealth_test` |
-| User name | `admin` |
+| User name | `admin` — **literally the word "admin", not an email address.** `docker-compose.yml` also sets a `GNUHEALTH_ADMIN_EMAIL` (`admin@example.test`) — that's just contact info stored on the account, not something you log in with. Typing the email as the username is a real mistake people have hit here; it fails login every time. |
 | Password | `change_me_dev_only` (set in `docker-compose.yml`'s `app` service — change it there if you want a different one) |
 
 ### Stopping it
@@ -44,6 +44,14 @@ docker compose logs app        # see what the GNU Health server is doing/said
 docker compose ps              # check both containers are actually running
 docker compose restart app     # restart just the app without touching data
 ```
+
+**"Login failed" / stuck after entering a password:** check
+`docker compose logs app` for a line like `login failed for '<name>' ...` —
+it tells you exactly what username was actually tried. The #1 cause is
+typing the admin **email** (`admin@example.test`) instead of the username
+(`admin`) — see the table above. If the log shows the right username
+failing, double-check you're using the password currently set in
+`docker-compose.yml` (it may have been changed from the default).
 
 **This is not the production deployment.** The production path is
 `deploy/provision.sh` + `deploy/nginx/` + `deploy/systemd/` running directly
