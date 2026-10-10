@@ -78,7 +78,11 @@ steps and login credentials,
 for a verified walkthrough of registering a patient through the UI, and
 [`deploy/dev/docs/searching-for-a-patient.md`](deploy/dev/docs/searching-for-a-patient.md)
 confirming the original requirement — searching by patient ID or phone
-number — works in the real UI, not just via the API.
+number — works in the real UI, not just via the API, and
+[`deploy/dev/docs/recording-a-patient-visit.md`](deploy/dev/docs/recording-a-patient-visit.md)
+for recording a visit (a "Patient Evaluation" in GNU Health's terms),
+including a one-time Health Professional setup step that trips up a fresh
+install.
 
 ## Next steps, in sequence
 
