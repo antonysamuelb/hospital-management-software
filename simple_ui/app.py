@@ -255,11 +255,14 @@ def search():
         try:
             results = client.search_read(
                 "gnuhealth.patient", domain,
-                ["id", "puid", "party.name", "party.gender", "party.dob"],
+                ["id", "puid", "party.name", "party.gender", "party.dob",
+                 "party.contact_mechanisms.value"],
                 limit=50,
             )
             for row in results:
                 row["age_years"] = compute_age_years(row["party."]["dob"])
+                phones = row["party."]["contact_mechanisms."]
+                row["phone_display"] = ", ".join(cm["value"] for cm in phones) if phones else None
         except GNUHealthError as e:
             flash(f"Search failed: {e}", "error")
 
