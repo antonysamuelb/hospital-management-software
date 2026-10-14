@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Log in — Front Desk{% endblock %}
+{% block content %}
+<div class="login-box">
+    <h1>Front Desk Login</h1>
+    <form method="post">
+        <input type="hidden" name="next" value="{{ request.args.get('next', '') }}">
+        <label>
+            Username
+            <input type="text" name="username" value="{{ username or '' }}" autofocus required>
+        </label>
+        <label>
+            Password
+            <input type="password" name="password" required>
+        </label>
+        <button type="submit" class="btn btn-primary btn-large">Log in</button>
+    </form>
+</div>
+{% endblock %}

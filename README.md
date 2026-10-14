@@ -13,6 +13,7 @@ open-source Hospital Management System (HMS), hosted in the cloud on a tight bud
 | Compute | Single VM, GNU Health installed via its official `gnuhealth-control` ("vanilla") method + self-hosted PostgreSQL + Nginx | Avoids managed-service costs (RDS, split app/DB servers) that don't make sense at this scale. **Not Docker** — GNU Health doesn't officially support/ship Docker, so `deploy/` follows the documented install path instead of an unverified container setup |
 | Managed DB service (Supabase etc.) | **Rejected for now** | Free tier lacks backups/SLA and adds cross-network latency + a second vendor for no cost savings once Postgres is self-hosted for free |
 | Budget target | **$0–10/month** | Hospital revenue is ~$1000/month; infra cost must stay well under 1-2% of that |
+| Front-end UI | **Custom app (`simple_ui/`), not Sao** | Direct feedback: Sao (GNU Health's own web client) was too complex for day-to-day front-desk use even after trimming its menu via built-in role groups (see `deploy/dev/docs/simplified-front-desk-role.md`). `simple_ui/` is a small Flask app — two buttons, age/sex-filtered search — talking to GNU Health over its existing JSON-RPC API. GNU Health remains the system of record; this doesn't touch the database directly or duplicate its business logic |
 
 ## Repo layout
 
@@ -34,11 +35,17 @@ custom_modules/
   health_default_ethnicity  Site customization: adds "South Asian" to GNU
                              Health's US-census-derived ethnicity list and
                              defaults new patients to it. See custom_modules/README.md
+simple_ui/
+  app.py                    Flask app: login, landing (2 buttons), register,
+                             search (age bucket + sex filters), patient detail
+  gnuhealth_client.py        Dependency-free JSON-RPC client talking to GNU
+                             Health's API directly. See simple_ui/README.md
 tools/
   validate_deploy_configs.py   Structural validation for the deploy/ configs
 tests/
   test_backup_retention.py  8 tests, pure logic, no external dependencies
   test_healthcheck.py       9 tests, spin up real local HTTP servers
+  test_age_buckets.py       5 tests, simple_ui's age-bucket date math
 ```
 
 ### Status: what's actually verified vs. what still needs the real VM

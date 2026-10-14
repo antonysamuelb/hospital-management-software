@@ -1,0 +1,135 @@
+:root {
+    --primary: #0d6e6e;
+    --primary-dark: #0a5555;
+    --secondary: #e8f4f4;
+    --text: #1a1a1a;
+    --muted: #666;
+    --border: #d8d8d8;
+    --error: #b3261e;
+    --success: #1e7a34;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--text);
+    background: #fafafa;
+}
+
+.topbar {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem 1.5rem;
+    background: var(--primary);
+    color: white;
+}
+.topbar .brand { color: white; font-weight: 700; font-size: 1.1rem; text-decoration: none; }
+.topbar .spacer { flex: 1; }
+.topbar .user { margin-right: 1.5rem; opacity: 0.9; }
+.topbar .logout { color: white; text-decoration: underline; }
+
+.container {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
+}
+
+h1 { font-size: 1.6rem; margin-bottom: 1rem; }
+
+.flash {
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+}
+.flash-error { background: #fdecea; color: var(--error); border: 1px solid #f5c6c2; }
+.flash-success { background: #eaf6ec; color: var(--success); border: 1px solid #c3e6c9; }
+
+/* Landing page: the two big buttons */
+.landing { padding-top: 2rem; }
+.landing-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+}
+@media (max-width: 560px) {
+    .landing-grid { grid-template-columns: 1fr; }
+}
+.big-button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 3rem 1rem;
+    border-radius: 16px;
+    text-decoration: none;
+    color: white;
+    font-size: 1.3rem;
+    font-weight: 600;
+    min-height: 220px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    transition: transform 0.1s ease;
+}
+.big-button:active { transform: scale(0.98); }
+.big-button-new { background: var(--primary); }
+.big-button-new:hover { background: var(--primary-dark); }
+.big-button-find { background: #4a5a6a; }
+.big-button-find:hover { background: #38454f; }
+.big-button-icon { font-size: 3.5rem; line-height: 1; }
+
+/* Forms */
+.form { display: flex; flex-direction: column; gap: 1.1rem; max-width: 420px; }
+.form-inline { max-width: none; flex-direction: row; flex-wrap: wrap; align-items: flex-end; gap: 1rem; }
+.form-inline label { flex: 1; min-width: 160px; }
+label { display: flex; flex-direction: column; gap: 0.35rem; font-weight: 600; font-size: 0.95rem; color: var(--muted); }
+input, select {
+    font-size: 1.05rem;
+    padding: 0.6rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-family: inherit;
+}
+input:focus, select:focus { outline: 2px solid var(--primary); border-color: var(--primary); }
+
+.btn {
+    display: inline-block;
+    border: none;
+    border-radius: 8px;
+    padding: 0.7rem 1.3rem;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    text-align: center;
+}
+.btn-primary { background: var(--primary); color: white; }
+.btn-primary:hover { background: var(--primary-dark); }
+.btn-secondary { background: var(--secondary); color: var(--primary-dark); }
+.btn-large { padding: 1rem 1.5rem; font-size: 1.1rem; }
+
+.back-link { display: inline-block; margin-bottom: 1rem; color: var(--primary); text-decoration: none; font-weight: 600; }
+
+/* Search results */
+.results { width: 100%; border-collapse: collapse; margin-top: 1.5rem; }
+.results th, .results td { text-align: left; padding: 0.7rem 0.6rem; border-bottom: 1px solid var(--border); }
+.results th { color: var(--muted); font-size: 0.85rem; text-transform: uppercase; }
+.results tbody tr { cursor: pointer; }
+.results tbody tr:hover { background: var(--secondary); }
+.empty-state { color: var(--muted); margin-top: 2rem; }
+
+/* Patient detail */
+.detail-list { display: grid; grid-template-columns: 140px 1fr; row-gap: 0.75rem; margin-top: 1rem; }
+.detail-list dt { color: var(--muted); font-weight: 600; }
+.detail-list dd { margin: 0; }
+
+/* Login */
+.login-box { max-width: 360px; margin: 3rem auto 0; }
+
+/* Registration success */
+.success-box { text-align: center; padding-top: 2rem; }
+.success-name { font-size: 1.3rem; font-weight: 600; margin: 0.5rem 0 1.5rem; }
+.success-puid-label { color: var(--muted); margin-bottom: 0.25rem; }
+.success-puid { font-size: 2rem; font-weight: 700; letter-spacing: 0.05em; color: var(--primary); margin: 0 0 2rem; }
+.success-actions { display: flex; flex-direction: column; gap: 0.75rem; align-items: center; }

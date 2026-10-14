@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}New Registration — Front Desk{% endblock %}
+{% block content %}
+<a href="{{ url_for('landing') }}" class="back-link">&larr; Back</a>
+<h1>New Patient Registration</h1>
+<form method="post" class="form">
+    <label>
+        Full name
+        <input type="text" name="name" value="{{ name or '' }}" autofocus required>
+    </label>
+    <label>
+        Sex
+        <select name="sex" required>
+            <option value="">Select...</option>
+            {% for value, label in sex_options %}
+            <option value="{{ value }}" {% if sex == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </label>
+    <label>
+        Date of birth (optional)
+        <input type="date" name="dob" value="{{ dob or '' }}">
+    </label>
+    <label>
+        Phone number (optional)
+        <input type="tel" name="phone" value="{{ phone or '' }}" placeholder="+91-...">
+    </label>
+    <button type="submit" class="btn btn-primary btn-large">Register Patient</button>
+</form>
+{% endblock %}

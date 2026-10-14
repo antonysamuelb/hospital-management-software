@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Front Desk{% endblock %}
+{% block content %}
+<div class="landing">
+    <div class="landing-grid">
+        <a href="{{ url_for('register') }}" class="big-button big-button-new">
+            <span class="big-button-icon">+</span>
+            <span class="big-button-label">New Registration</span>
+        </a>
+        <a href="{{ url_for('search') }}" class="big-button big-button-find">
+            <span class="big-button-icon">⌕</span>
+            <span class="big-button-label">Find Patient</span>
+        </a>
+    </div>
+</div>
+{% endblock %}

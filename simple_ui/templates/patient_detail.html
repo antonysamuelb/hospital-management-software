@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}{{ patient['party.'].name }} — Front Desk{% endblock %}
+{% block content %}
+<a href="{{ url_for('search') }}" class="back-link">&larr; Back to search</a>
+<div class="detail-box">
+    <h1>{{ patient['party.'].name }}</h1>
+    <dl class="detail-list">
+        <dt>Patient ID</dt>
+        <dd>{{ patient.puid }}</dd>
+        <dt>Sex</dt>
+        <dd>{{ {'m': 'Male', 'f': 'Female'}.get(patient['party.'].gender, '—') }}</dd>
+        <dt>Date of birth</dt>
+        <dd>{{ patient['party.'].dob or '—' }}</dd>
+        <dt>Phone</dt>
+        <dd>
+            {% set phones = patient['party.']['contact_mechanisms.'] %}
+            {% if phones %}
+                {% for cm in phones %}{{ cm.value }}{% if not loop.last %}, {% endif %}{% endfor %}
+            {% else %}
+                —
+            {% endif %}
+        </dd>
+    </dl>
+</div>
+{% endblock %}

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Find Patient — Front Desk{% endblock %}
+{% block content %}
+<a href="{{ url_for('landing') }}" class="back-link">&larr; Back</a>
+<h1>Find Patient</h1>
+<form method="get" class="form form-inline">
+    <label>
+        Patient ID or phone number
+        <input type="text" name="q" value="{{ query }}" placeholder="PUID, phone, or name" autofocus>
+    </label>
+    <label>
+        Age
+        <select name="age_bucket">
+            <option value="">Any</option>
+            {% for label, min_age, max_age in age_buckets %}
+            <option value="{{ label }}" {% if age_bucket == label %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </label>
+    <label>
+        Sex
+        <select name="sex">
+            <option value="">Any</option>
+            {% for value, label in sex_options %}
+            <option value="{{ value }}" {% if sex == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </label>
+    <button type="submit" class="btn btn-primary">Search</button>
+</form>
+
+{% if searched %}
+    {% if results %}
+    <table class="results">
+        <thead>
+            <tr><th>Name</th><th>Sex</th><th>Date of birth</th><th>Patient ID</th></tr>
+        </thead>
+        <tbody>
+            {% for row in results %}
+            <tr onclick="window.location='{{ url_for('patient_detail', patient_id=row.id) }}'">
+                <td>{{ row['party.'].name }}</td>
+                <td>{{ {'m': 'Male', 'f': 'Female'}.get(row['party.'].gender, '') }}</td>
+                <td>{{ row['party.'].dob or '' }}</td>
+                <td>{{ row.puid }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty-state">No patients found.</p>
+    {% endif %}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Registered — Front Desk{% endblock %}
+{% block content %}
+<div class="success-box">
+    <h1>Patient Registered</h1>
+    <p class="success-name">{{ name }}</p>
+    <p class="success-puid-label">Patient ID (PUID)</p>
+    <p class="success-puid">{{ puid }}</p>
+    <div class="success-actions">
+        <a href="{{ url_for('register') }}" class="btn btn-primary btn-large">Register Another</a>
+        <a href="{{ url_for('patient_detail', patient_id=patient_id) }}" class="btn btn-secondary btn-large">View Record</a>
+        <a href="{{ url_for('landing') }}" class="back-link">&larr; Back to Front Desk</a>
+    </div>
+</div>
+{% endblock %}
