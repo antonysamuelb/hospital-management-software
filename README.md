@@ -3,6 +3,11 @@
 Deployment project for a **10-bed rural hospital in India**: evaluating and standing up an
 open-source Hospital Management System (HMS), hosted in the cloud on a tight budget.
 
+**Ready to actually deploy this?** See
+[`CLOUD_DEPLOYMENT.md`](CLOUD_DEPLOYMENT.md) for a single sequential
+checklist — what's proven vs. still a reasoned-but-untested plan, for
+every step from provisioning the VM through go-live.
+
 ## Decisions made so far
 
 | Decision | Choice | Why |
