@@ -82,7 +82,11 @@ number — works in the real UI, not just via the API, and
 [`deploy/dev/docs/recording-a-patient-visit.md`](deploy/dev/docs/recording-a-patient-visit.md)
 for recording a visit (a "Patient Evaluation" in GNU Health's terms),
 including a one-time Health Professional setup step that trips up a fresh
-install.
+install, and
+[`deploy/dev/docs/simplified-front-desk-role.md`](deploy/dev/docs/simplified-front-desk-role.md)
+for a reduced-menu reception role (157 menu items down to 13) in response
+to "the UI is too complex" feedback, plus what a real custom landing page
+would actually take.
 
 ## Next steps, in sequence
 
@@ -130,7 +134,7 @@ install.
 ### 7. Data & configuration — 🟢 core requirement proven; rest blocked on the real instance
 - [x] **Patient lookup by ID and phone number — the original requirement — confirmed working** against a live instance (`deploy/dev/test_patient_lookup.py`): by internal id, by GNU Health's auto-generated PUID, and by phone number via `party.contact_mechanisms`.
 - [ ] `health_inpatient` module (bed/ward management) is installed and activated in the test harness, but not yet configured for an actual 10-bed layout — that's real data entry, not scriptable in advance.
-- [ ] Set up user roles/permissions for hospital staff (reception, nurses, doctors, pharmacy, admin).
+- [x] **Reception role started** — GNU Health's built-in "Health Front Desk" group verified to cut the menu from 157 items to 13, with no Prescriptions/Hospitalizations/Nursing/Reporting/Administration visible, while patient registration and search both keep working. See `deploy/dev/docs/simplified-front-desk-role.md`. Doctor/nurse/pharmacy roles not yet configured — GNU Health ships groups for those too ("Health Doctor", "Health Nurse", etc.) but haven't been verified the same way.
 - [ ] Import or set up any existing patient records (if migrating from paper/another system).
 - [x] Web UI (Sao) now proven working in-browser — see phase 3. Not yet ported to the production (non-Docker) install path.
 - [x] **Ethnicity list localized** — added "South Asian" (GNU Health's stock list is US-census-derived and had nothing appropriate) and set it as the default for new patients. Proven on a fresh database, both via the API and visually in the UI. See `custom_modules/health_default_ethnicity/` and `custom_modules/README.md`. Not yet ported to the production (non-Docker) install path — manual steps documented there.
