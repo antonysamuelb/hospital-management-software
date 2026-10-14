@@ -79,6 +79,23 @@ def age_bucket_to_dob_range(min_age: int, max_age: int | None, today: datetime.d
     return earliest_dob, latest_dob
 
 
+def compute_age_years(dob: datetime.date | None, today: datetime.date | None = None) -> int | None:
+    """Whole years of age as of `today`, or None if DOB is unknown.
+
+    GNU Health's own "Age" display (seen in Sao) breaks this down into
+    years/months/days; this app only needs whole years for a quick
+    front-desk glance, matched against the AGE_BUCKETS definitions.
+    """
+    if dob is None:
+        return None
+    today = today or datetime.date.today()
+    years = today.year - dob.year
+    # Subtract one if this year's birthday hasn't happened yet.
+    if (today.month, today.day) < (dob.month, dob.day):
+        years -= 1
+    return years
+
+
 def get_client() -> GNUHealthClient | None:
     """Reconstruct an authenticated client from the Flask session, or
     None if not logged in."""
@@ -241,6 +258,8 @@ def search():
                 ["id", "puid", "party.name", "party.gender", "party.dob"],
                 limit=50,
             )
+            for row in results:
+                row["age_years"] = compute_age_years(row["party."]["dob"])
         except GNUHealthError as e:
             flash(f"Search failed: {e}", "error")
 

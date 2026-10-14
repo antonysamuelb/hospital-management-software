@@ -4,9 +4,46 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "simple_ui"))
 
-from app import age_bucket_to_dob_range  # noqa: E402
+from app import age_bucket_to_dob_range, compute_age_years  # noqa: E402
 
 TODAY = datetime.date(2026, 10, 14)
+
+
+def test_compute_age_years_unknown_dob_returns_none():
+    assert compute_age_years(None, TODAY) is None
+
+
+def test_compute_age_years_birthday_already_passed_this_year():
+    dob = datetime.date(1991, 8, 7)  # birthday earlier in the year than TODAY
+    assert compute_age_years(dob, TODAY) == 35
+
+
+def test_compute_age_years_birthday_not_yet_reached_this_year():
+    dob = datetime.date(1991, 12, 25)  # birthday later in the year than TODAY
+    assert compute_age_years(dob, TODAY) == 34
+
+
+def test_compute_age_years_born_today_is_zero():
+    dob = TODAY
+    assert compute_age_years(dob, TODAY) == 0
+
+
+def test_compute_age_years_matches_the_bucket_it_falls_into():
+    # Ties this test to age_bucket_to_dob_range so the two can never
+    # silently drift apart from each other.
+    dob = datetime.date(1991, 8, 7)
+    age = compute_age_years(dob, TODAY)
+    assert age is not None
+    bucket = next(
+        (label for label, lo, hi in [
+            ("0-5", 0, 5), ("6-12", 6, 12), ("13-18", 13, 18),
+            ("19-40", 19, 40), ("41-60", 41, 60), ("61+", 61, None),
+        ] if lo <= age and (hi is None or age <= hi)),
+        None,
+    )
+    assert bucket == "19-40"
+    earliest, latest = age_bucket_to_dob_range(19, 40, TODAY)
+    assert earliest <= dob <= latest
 
 
 def test_youngest_bucket_upper_bound_is_today():
