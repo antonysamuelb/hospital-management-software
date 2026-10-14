@@ -83,6 +83,7 @@ h1 { font-size: 1.6rem; margin-bottom: 1rem; }
 .form { display: flex; flex-direction: column; gap: 1.1rem; max-width: 420px; }
 .form-inline { max-width: none; flex-direction: row; flex-wrap: wrap; align-items: flex-end; gap: 1rem; }
 .form-inline label { flex: 1; min-width: 160px; }
+.form-inline label.label-wide { flex: 2.5; min-width: 240px; }
 label { display: flex; flex-direction: column; gap: 0.35rem; font-weight: 600; font-size: 0.95rem; color: var(--muted); }
 input, select {
     font-size: 1.05rem;

@@ -4,9 +4,9 @@
 <a href="{{ url_for('landing') }}" class="back-link">&larr; Back</a>
 <h1>Find Patient</h1>
 <form method="get" class="form form-inline">
-    <label>
-        Patient ID or phone number
-        <input type="text" name="q" value="{{ query }}" placeholder="PUID, phone, or name" autofocus>
+    <label class="label-wide">
+        Patient ID, phone number, or name
+        <input type="text" name="q" value="{{ query }}" placeholder="Search..." autofocus>
     </label>
     <label>
         Age
