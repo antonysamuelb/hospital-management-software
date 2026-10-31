@@ -23,7 +23,6 @@ set -euo pipefail
 
 GNUHEALTH_USER="gnuhealth"
 GNUHEALTH_HOME="/opt/gnuhealth"
-POSTGRES_VERSION="15"
 
 log() { printf '\n\033[1;32m==> %s\033[0m\n' "$1"; }
 
@@ -35,9 +34,17 @@ fi
 log "Updating package index"
 apt-get update -y
 
-log "Installing base packages: PostgreSQL ${POSTGRES_VERSION}, Nginx, Python, build deps"
+log "Installing base packages: PostgreSQL, Nginx, Python, build deps"
+# Deliberately the unversioned "postgresql" metapackage, not e.g.
+# "postgresql-15" — which major version that resolves to depends on the
+# OS release (Ubuntu 22.04 -> 14, Ubuntu 24.04 -> 16, Debian 12 -> 15,
+# ...). A hardcoded version number here is a real way for this script to
+# quietly fail entirely on a newer image: confirmed Ubuntu 24.04's
+# default repos don't even have a package literally named "postgresql-15"
+# (checked against packages.ubuntu.com, not assumed). The actual
+# installed version is detected below instead of assumed.
 apt-get install -y \
-  "postgresql-${POSTGRES_VERSION}" \
+  postgresql \
   postgresql-client \
   nginx \
   python3 \
@@ -67,6 +74,14 @@ mkdir -p "${GNUHEALTH_HOME}"
 chown "${GNUHEALTH_USER}:${GNUHEALTH_USER}" "${GNUHEALTH_HOME}"
 
 log "Configuring PostgreSQL peer authentication for the gnuhealth role"
+# Detect whatever major version apt actually installed above, rather than
+# assume one — see the comment on the "postgresql" package install.
+POSTGRES_VERSION="$(ls /etc/postgresql/ | sort -n | tail -1)"
+if [[ -z "${POSTGRES_VERSION}" ]]; then
+  echo "Could not detect an installed PostgreSQL version under /etc/postgresql/ — aborting." >&2
+  exit 1
+fi
+echo "Detected PostgreSQL ${POSTGRES_VERSION}"
 PG_HBA="/etc/postgresql/${POSTGRES_VERSION}/main/pg_hba.conf"
 if [[ -f "${PG_HBA}" ]] && ! grep -q "^local\s\+all\s\+${GNUHEALTH_USER}\s\+peer" "${PG_HBA}"; then
   # Insert a peer-auth line for the gnuhealth user ABOVE the default "local all all peer" line
