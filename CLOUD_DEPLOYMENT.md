@@ -142,11 +142,12 @@ Run it via a real WSGI server, not Flask's own dev server:
 gunicorn -w 2 -b 127.0.0.1:5050 app:app
 ```
 
-**Not yet created, needed before this is real:**
-- [ ] A `deploy/systemd/simple-ui.service` unit (mirror
-      `deploy/systemd/gnuhealth.service`'s structure: `User=gnuhealth`,
-      `WorkingDirectory=`, the gunicorn `ExecStart=` above,
-      `Restart=on-failure`, `WantedBy=multi-user.target`)
+`deploy/systemd/simple-ui.service` now exists in this repo — copy it into
+place and follow the comments at its top (generate a real
+`SIMPLE_UI_SECRET_KEY`, don't leave the default running). Not yet proven
+on a real host.
+
+**Still needed before this is real:**
 - [ ] Real GNU Health user accounts for actual staff, with real
       passwords — the `reception` / `reception123` account only exists
       in the local `gnuhealth_test` database and must never be the

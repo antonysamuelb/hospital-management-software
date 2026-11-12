@@ -1,0 +1,55 @@
+# systemd unit for simple_ui, the Flask front-desk app (registration/search).
+#
+# Install:
+#   sudo cp deploy/systemd/simple-ui.service /etc/systemd/system/simple-ui.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now simple-ui
+#
+# Prerequisites (see CLOUD_DEPLOYMENT.md step 5):
+#   cd /opt/gnuhealth/simple_ui
+#   python3 -m venv venv
+#   source venv/bin/activate
+#   pip install -r requirements.txt gunicorn
+#   deactivate
+#
+# Generate a real secret key before enabling this unit:
+#   python3 -c "import secrets; print(secrets.token_hex(32))"
+# and paste it into Environment=SIMPLE_UI_SECRET_KEY= below. Never leave the
+# "dev-only-change-me" default running in production — app.py falls back to
+# it silently if this is left unset.
+#
+# WorkingDirectory/ExecStart below assume the repo was cloned to
+# /opt/gnuhealth/simple_ui. Adjust both if you put it elsewhere.
+
+[Unit]
+Description=simple_ui (Flask front-desk app, via Gunicorn)
+After=network.target gnuhealth.service
+Wants=gnuhealth.service
+
+[Service]
+Type=simple
+User=gnuhealth
+Group=gnuhealth
+WorkingDirectory=/opt/gnuhealth/simple_ui
+Environment=GNUHEALTH_URL=http://127.0.0.1:8000
+Environment=GNUHEALTH_DATABASE=ghprod
+Environment=SIMPLE_UI_SECRET_KEY=CHANGE_ME_before_enabling
+ExecStart=/opt/gnuhealth/simple_ui/venv/bin/gunicorn \
+    --workers 2 \
+    --bind 127.0.0.1:5050 \
+    --timeout 120 \
+    app:app
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=simple-ui
+
+# Basic sandboxing — simple_ui only needs its own working directory and the
+# ability to reach GNU Health's trytond server over loopback.
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
