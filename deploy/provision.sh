@@ -112,7 +112,13 @@ cat <<'EOF'
 ==============================================================================
 Provisioning complete. Manual steps remaining (see deploy/README.md):
 
-  1. su - gnuhealth
+  1. sudo su - gnuhealth  # NOT a bare "su" -- the account has no password
+                           # (adduser --disabled-password, deliberately, for
+                           # a service account). A non-root user running
+                           # plain "su - gnuhealth" gets stuck at a Password:
+                           # prompt that can never succeed. sudo already has
+                           # root, and root can switch to any account,
+                           # password-disabled or not, with no prompt.
   2. python3 -m venv tmp_ghvenv && cd tmp_ghvenv && source bin/activate
   3. pip install gnuhealth-control
   4. ghcontrol            # choose "0: Install GNU Health HIS", then
