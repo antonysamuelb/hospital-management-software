@@ -125,13 +125,22 @@ Provisioning complete. Manual steps remaining (see deploy/README.md):
                            # "1: Create a new DB instance"
 
   5. Web UI (Sao) — confirmed working this way in deploy/dev/, proven in an
-     actual browser, not just by install succeeding:
+     actual browser, not just by install succeeding. Don't hardcode a sao
+     version here -- it WILL drift from whatever trytond version actually
+     gets installed (confirmed: a version noted in this file months ago
+     was already stale by the time of the first real VM deployment).
+     Instead, look both up fresh, every time:
+       pip show trytond | grep Version          # as the gnuhealth user
+       npm view tryton-sao dist-tags            # find the matching
+                                                  # "series-X.Y" entry
+     Then, with the matching version (call it X.Y.Z below):
        cd /opt/gnuhealth
-       npm install tryton-sao@7.0.58 --production --legacy-peer-deps
-       # pin the version to match your trytond release's "series-X.Y" npm
-       # dist-tag — check with: npm view tryton-sao dist-tags
+       npm install tryton-sao@X.Y.Z --production --legacy-peer-deps
      Then add this line to the [web] section of trytond.conf
-     (/opt/gnuhealth/his-50/trytond.conf, alongside "listen = ..."):
+     (/opt/gnuhealth/his-50/etc/trytond.conf -- note the "etc/", confirmed
+     against a real install, not /opt/gnuhealth/his-50/trytond.conf as an
+     earlier version of this file incorrectly assumed -- alongside
+     "listen = ..."):
        root = /opt/gnuhealth/node_modules/tryton-sao
      Restart the service after editing. Without this, the server only
      answers JSON-RPC and GET / returns 405 — there is no browser UI.

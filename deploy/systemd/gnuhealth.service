@@ -13,12 +13,23 @@
 # WSGI target CONFIRMED against a live instance (deploy/dev/ test harness):
 # `python3 -c "import trytond.application as a; print(dir(a))"` shows the
 # 'app' callable actually exists in trytond.application, and the server
-# in deploy/dev/ was reached successfully through it. Still built via pip
-# install directly (trytond + gnuhealth-all-modules), not through
-# `ghcontrol` itself — ghcontrol turned out to be a curses TUI with no
-# unattended install path (see scripts/backup.sh's header for how that was
-# confirmed) — so if you install via ghcontrol specifically, double check
-# its generated venv path matches WorkingDirectory/ExecStart below.
+# in deploy/dev/ was reached successfully through it.
+#
+# TRYTOND_CONFIG path below CONFIRMED on a real ghcontrol-driven install
+# (first production VM, Nov 2026): it's
+# /opt/gnuhealth/his-50/etc/trytond.conf -- note the "etc/" subdirectory,
+# which an earlier version of this file got wrong (had no etc/). Found via
+# `find /opt/gnuhealth -name trytond.conf` on the live host, not assumed.
+#
+# ExecStart's venv path below is still NOT independently confirmed the
+# same way -- it's the pip-install-direct convention from deploy/dev/
+# (ghcontrol wasn't used there; see scripts/backup.sh's header for why).
+# Given trytond.conf turned up a directory level deeper than assumed, the
+# venv may well have a similar surprise. Before relying on this file,
+# check on your actual host: `which gunicorn` (as the gnuhealth user, in
+# a shell where its .bashrc has auto-activated the environment -- see
+# deploy/provision.sh's printed instructions) and fix WorkingDirectory/
+# ExecStart to match if it differs from what's written below.
 
 [Unit]
 Description=GNU Health HIS (trytond via Gunicorn)
@@ -30,7 +41,7 @@ Type=simple
 User=gnuhealth
 Group=gnuhealth
 WorkingDirectory=/opt/gnuhealth/his-50
-Environment=TRYTOND_CONFIG=/opt/gnuhealth/his-50/trytond.conf
+Environment=TRYTOND_CONFIG=/opt/gnuhealth/his-50/etc/trytond.conf
 ExecStart=/opt/gnuhealth/his-50/venv/bin/gunicorn \
     --workers 3 \
     --bind 127.0.0.1:8000 \
