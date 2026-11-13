@@ -120,16 +120,15 @@ would actually take.
 - [x] Installed via `ghcontrol` (the real curses TUI, run by hand as documented) against a real PostgreSQL database named `ghprod`.
 - [x] Confirmed GNU Health auto-creates the `gnuhealth.patient` record when a party is saved with `is_patient=True` — don't create one explicitly (GNU Health will refuse it as a duplicate).
 - [x] **Sao (the web UI) installed directly on the VM** (not Docker this time) — `npm install tryton-sao`, `trytond.conf`'s `[web] root = ...` pointed at it, matching version to the installed trytond (`7.0.61`) looked up fresh rather than hardcoded. **Logged in through a real browser** as Administrator against `ghprod`.
-- [ ] Point a domain name at the VM (~$1/month amortized) for clean HTTPS access — currently reachable only via the bare IP over plain HTTP.
-- [ ] `sudo certbot --nginx -d your-domain.example` — blocked on the domain above.
+- [x] **Domain purchased and live**: `thestfrancishospital.com` (Namecheap), `admin.thestfrancishospital.com` A-recorded at the VM's IP.
+- [x] **HTTPS live via certbot**: `sudo certbot --nginx -d app.thestfrancishospital.com -d admin.thestfrancishospital.com` issued a real Let's Encrypt cert covering both subdomains in one run, auto-renewal scheduled by certbot itself. `https://admin.thestfrancishospital.com` serves Sao with a valid cert.
 - [ ] Create non-admin GNU Health user accounts for actual staff.
 
-### 3b. Deploy `simple_ui` — 🟢 done (domain/TLS still pending)
+### 3b. Deploy `simple_ui` — 🟢 done
 - [x] `deploy/systemd/simple-ui.service` — **installed and running on the real VM**, `gunicorn` bound to `127.0.0.1:5050`, `systemctl status` shows `active (running)`.
-- [x] `deploy/nginx/simple-ui.conf` — **installed on the real VM**, plain HTTP via the VM's IP (no domain yet), proxying to the gunicorn process above. `sudo nginx -t` passed before reload.
-- [x] **Logged into end-to-end through a real browser** — the New Registration / Find Patient landing page, reachable at `http://<VM IP>/` with no port number.
-- [ ] Domain + TLS — same blocker as phase 3. Right now login credentials go over plain HTTP to a bare IP; fine for continued testing, **not fine for real patient data or real staff passwords** — prioritize the domain/TLS step before go-live.
-- [ ] A real random `SIMPLE_UI_SECRET_KEY` was generated and installed (not the dev default) — see the systemd unit's `Environment=` line.
+- [x] `deploy/nginx/simple-ui.conf` — **installed on the real VM**, now serving `app.thestfrancishospital.com` specifically (not a bare-IP catch-all anymore — see phase 3's domain/TLS notes, same certbot run covered this subdomain too).
+- [x] **Logged into end-to-end through a real browser** over HTTPS at `https://app.thestfrancishospital.com` — the New Registration / Find Patient landing page, valid cert, no port number needed.
+- [x] A real random `SIMPLE_UI_SECRET_KEY` was generated and installed (not the dev default) — see the systemd unit's `Environment=` line.
 
 ### 4. Backups — 🟢 proven end-to-end against real data, needs the VM + a B2 account for the offsite leg
 - [x] `scripts/backup.sh` — **rewritten** after testing revealed `ghcontrol backup` isn't a real CLI command (ghcontrol is curses-only; its own backup menu option is just `pg_dump` under the hood, confirmed by reading its source). Now does `pg_dump --format=custom` + tars the attachment directory + `rclone sync` to Backblaze B2 + retention.

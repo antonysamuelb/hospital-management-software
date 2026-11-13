@@ -265,9 +265,9 @@ VM exists and you can see real log volume).
 |---|---|
 | GNU Health itself (install, modules, Sao, backups, patient lookup) | **Proven in Docker, and now proven for real** on the production AWS Lightsail VM (Mumbai): `ghcontrol`-driven install, `gnuhealth.service` running under systemd, Sao installed via npm and logged into through a real browser |
 | `simple_ui` running under gunicorn behind Nginx on a real VM | **Proven.** `simple-ui.service` + `simple-ui.conf` both installed and running on the same production VM; logged into end-to-end through a real browser at the VM's bare IP |
-| Domain name + TLS (HTTPS) | **Not yet done.** Both services above are only reachable over plain HTTP via the VM's raw IP right now — real login credentials are going over the open internet unencrypted. Low risk while this is just you testing; **do this before any real staff password or patient data touches the system** |
-| The two-subdomain Nginx split | **Not yet built** — currently both services were tested one at a time on plain HTTP via the bare IP, not the two-subdomain architecture described below. Revisit once a domain exists |
-| Everything under "Data setup" | **Blocked on the domain/TLS step above**, not on the instance itself — the instance exists and works now |
+| Domain name + TLS (HTTPS) | **Proven.** `thestfrancishospital.com` registered, DNS pointed at the VM, `certbot --nginx` issued a real cert covering both subdomains in one run. Both services are reachable over real HTTPS now, auto-renewal scheduled by certbot |
+| The two-subdomain Nginx split | **Proven.** `app.thestfrancishospital.com` → `simple_ui`, `admin.thestfrancishospital.com` → Sao/GNU Health, same VM, same port, Nginx routing by `Host` header exactly as planned |
+| Everything under "Data setup" | **Blocked on the real instance existing** — can't be done in advance. The instance itself is ready now |
 
 This document exists so that when you're ready to actually provision the
 VM, there's one place that says what to do, in order, with an honest
