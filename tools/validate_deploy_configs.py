@@ -70,6 +70,31 @@ def validate_systemd_unit() -> None:
     )
 
 
+def validate_simple_ui_nginx() -> None:
+    path = ROOT / "deploy" / "nginx" / "simple-ui.conf"
+    text = path.read_text(encoding="utf-8")
+
+    check(text.count("{") == text.count("}"), f"{path}: unbalanced braces")
+    check("listen 80" in text, f"{path}: missing 'listen 80'")
+    check(
+        "proxy_pass http://127.0.0.1:5050;" in text,
+        f"{path}: proxy_pass must point at 127.0.0.1:5050 "
+        "(matches simple-ui.service's gunicorn --bind)",
+    )
+    check("server_name" in text, f"{path}: missing server_name directive")
+
+    # The port the service binds to must match what the nginx conf proxies to.
+    service_text = (ROOT / "deploy" / "systemd" / "simple-ui.service").read_text(encoding="utf-8")
+    service_port_match = re.search(r"--bind 127\.0\.0\.1:(\d+)", service_text)
+    nginx_port_match = re.search(r"proxy_pass http://127\.0\.0\.1:(\d+);", text)
+    check(
+        bool(service_port_match and nginx_port_match)
+        and service_port_match.group(1) == nginx_port_match.group(1),
+        "deploy/systemd/simple-ui.service and deploy/nginx/simple-ui.conf "
+        "must agree on the port gunicorn listens on",
+    )
+
+
 def validate_provision_script() -> None:
     path = ROOT / "deploy" / "provision.sh"
     text = path.read_text(encoding="utf-8")
@@ -86,6 +111,7 @@ def validate_provision_script() -> None:
 def main() -> int:
     validate_nginx_conf()
     validate_systemd_unit()
+    validate_simple_ui_nginx()
     validate_provision_script()
 
     if FAILURES:
