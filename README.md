@@ -6,7 +6,11 @@ open-source Hospital Management System (HMS), hosted in the cloud on a tight bud
 **Ready to actually deploy this?** See
 [`CLOUD_DEPLOYMENT.md`](CLOUD_DEPLOYMENT.md) for a single sequential
 checklist — what's proven vs. still a reasoned-but-untested plan, for
-every step from provisioning the VM through go-live.
+every step from provisioning the VM through go-live. See
+[`VISIT_TRACKING_DESIGN.md`](VISIT_TRACKING_DESIGN.md) for how visit
+recording, diagnosis, and prescriptions were added to `simple_ui`, and
+[`TODO.md`](TODO.md) for known gaps (security review findings, a real
+prescription-safety-check limitation, etc.) still open.
 
 ## Decisions made so far
 
@@ -31,6 +35,9 @@ deploy/
                             see deploy/dev/README.md). Used to actually run
                             GNU Health end-to-end and prove the scripts below
                             against a real instance instead of assumptions.
+  dev/introspect_fields.py Reusable tool: dumps fields_get()+selection values
+                            for any GNU Health model against the dev harness,
+                            so new features use real field names, not guesses.
 scripts/
   backup.sh                Nightly backup: pg_dump -Fc + attach dir -> rclone -> retention
   backup_retention.py       Retention policy logic (unit tested)
@@ -42,7 +49,9 @@ custom_modules/
                              defaults new patients to it. See custom_modules/README.md
 simple_ui/
   app.py                    Flask app: login, landing (2 buttons), register,
-                             search (age bucket + sex filters), patient detail
+                             search (age bucket + sex filters + visit stats),
+                             patient detail + visit history, record visit
+                             (diagnosis + prescriptions)
   gnuhealth_client.py        Dependency-free JSON-RPC client talking to GNU
                              Health's API directly. See simple_ui/README.md
 tools/
@@ -51,6 +60,8 @@ tests/
   test_backup_retention.py  8 tests, pure logic, no external dependencies
   test_healthcheck.py       9 tests, spin up real local HTTP servers
   test_age_buckets.py       5 tests, simple_ui's age-bucket date math
+  test_visit_summary.py     6 tests, grouping evaluations into per-patient
+                             visit count/first/last date stats
 ```
 
 ### Status: what's actually verified vs. what still needs the real VM
@@ -68,6 +79,7 @@ different things:
 | **Patient lookup by ID / phone** (the original requirement this whole project started from) | `deploy/dev/test_patient_lookup.py` (API, via `proteus`) **+ manually verified in the actual browser UI** | **Passing both ways.** API: created a test patient, confirmed lookup by internal id, PUID, and phone number. UI: the Patients list's search box correctly filters by full phone number, **partial** phone number (last 4 digits), PUID, and name — see `deploy/dev/docs/searching-for-a-patient.md` |
 | **Backup + restore** | `pg_dump --format=custom` on the live DB, restored into a fresh database, re-queried via a new server connection | **Passing**: the same patient (PUID, phone) was present and correct in the restored database. The exact archive filename `backup.sh` produces was also confirmed to parse correctly under `backup_retention.py`'s regex |
 | `custom_modules/health_default_ethnicity` (adds "South Asian" ethnicity, defaults new patients to it) | Activated on a **completely fresh** database (`docker compose down -v && up -d`), confirmed via API (`default_ethnic_group()` returns the right record) **and visually in the Sao UI** (new-patient dialog shows "Ethnicity: South Asian" pre-filled) | **Passing.** Wired into `deploy/dev/`'s Dockerfile/entrypoint automatically; **not yet ported to the production (non-Docker) install** — manual steps documented in `custom_modules/README.md` |
+| `simple_ui`'s Record Visit (diagnosis + prescriptions) | Verified end-to-end against the dev harness **and through a real browser**: created an evaluation (chief complaint, diagnosis, discharge reason) and a prescription (real WHO Essential Medicines drug, dosage) for an existing patient, confirmed both saved correctly via a fresh API read, confirmed the new Visit History section and search columns (visit count/first/last date) render the real data | **Passing**, with one real limitation found and documented, not silently papered over: GNU Health's pregnancy/allergy prescription warnings depend on client-side `on_change` logic that a raw API `create()` never runs — see `TODO.md`. Also fixed a real bug this surfaced in `gnuhealth_client.py` (datetime fields were never being decoded, only plain dates) |
 | `deploy/nginx/gnuhealth.conf`, `deploy/provision.sh` | Structural validation (`python tools/validate_deploy_configs.py`) + `bash -n` syntax check | Passing. Still **not** run through real `nginx -t` or `provision.sh` on an actual VM — that needs the real cloud host from phase 1, not something further local testing can close |
 | `deploy/systemd/gnuhealth.service` | **Running for real** on the production AWS Lightsail VM (Mumbai) — `systemctl status` shows `active (running)`, `curl` to `127.0.0.1:8000/` returns `200` | **Passing.** Confirmed `ghcontrol`'s own venv (`/opt/gnuhealth/his-50/venv`) doesn't include `gunicorn` by default — had to `pip install gunicorn` into it by hand before this unit would start; WSGI target (`trytond.application:app`) also independently re-confirmed on this real install, not just the dev harness |
 | `deploy/nginx/simple-ui.conf`, `deploy/systemd/simple-ui.service` | **Running for real** on the same production VM — Nginx (plain HTTP via the VM's IP, no domain yet) → Gunicorn → `simple_ui` → GNU Health's JSON-RPC API, logged into end-to-end through an actual browser (New Registration / Find Patient landing page) | **Passing.** First time `simple_ui` has run anywhere but a local dev server. `tools/validate_deploy_configs.py` extended to check this pair the same way as the GNU Health/Sao one |

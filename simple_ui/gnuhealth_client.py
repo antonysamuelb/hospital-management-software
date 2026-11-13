@@ -48,6 +48,16 @@ class AuthenticationError(GNUHealthError):
 
 
 def _json_default(obj):
+    # datetime.datetime is a subclass of datetime.date -- check it FIRST,
+    # or every datetime would be wire-encoded as a bare date and silently
+    # lose its time-of-day.
+    if isinstance(obj, datetime.datetime):
+        return {
+            "__class__": "datetime",
+            "year": obj.year, "month": obj.month, "day": obj.day,
+            "hour": obj.hour, "minute": obj.minute, "second": obj.second,
+            "microsecond": obj.microsecond,
+        }
     if isinstance(obj, datetime.date):
         return {
             "__class__": "date",
@@ -59,8 +69,15 @@ def _json_default(obj):
 
 
 def _json_object_hook(d: dict):
-    if d.get("__class__") == "date":
+    cls = d.get("__class__")
+    if cls == "date":
         return datetime.date(d["year"], d["month"], d["day"])
+    if cls == "datetime":
+        return datetime.datetime(
+            d["year"], d["month"], d["day"],
+            d.get("hour", 0), d.get("minute", 0), d.get("second", 0),
+            d.get("microsecond", 0),
+        )
     return d
 
 

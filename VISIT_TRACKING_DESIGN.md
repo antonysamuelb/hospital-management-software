@@ -113,42 +113,93 @@ don't exist in production yet (`README.md` phase 7). Building the UI
 before the underlying data exists would mean it can't actually be
 tested. Suggest revisiting once bed/ward setup happens.
 
-## Before writing any code
+## Real findings from verifying against the dev harness (2026-11-13)
 
-Consistent with how every other feature in this repo was built — verify
-against a real running instance, don't assume field names from
-documentation alone:
-1. Start the local Docker dev harness (`deploy/dev/`) and run
-   `fields_get` against `gnuhealth.patient.evaluation`,
-   `gnuhealth.prescription.order`, and `gnuhealth.prescription.line` to
-   get the real machine field names (the docs above describe UI labels,
-   not necessarily the exact field names the JSON-RPC API expects).
-2. Activate `health_who_essential_medicines` in the dev harness and
-   confirm the medicament list is actually populated before building
-   the drug-search UI against it.
-3. Prove the two-step create (evaluation, then prescription) end to end
-   against the dev harness before touching the production VM, same as
-   every other feature here.
+Confirmed field names via `fields_get` and proved both creates actually
+work end-to-end (not just that the API accepts them — read the records
+back and checked the values):
 
-## Open questions (need your call before implementing)
+- `gnuhealth.patient.evaluation`: `chief_complaint` (char),
+  `present_illness` (text), **`info_diagnosis`** (text — this is the
+  free-text "Info Dx" field; there's a *separate* `diagnosis` field that
+  is coded ICD-10 via `gnuhealth.pathology`, confirmed unused for v1 per
+  the decision above), `directions` (text — maps to "treatment plan"),
+  `discharge_reason` (required selection: `home`, `transfer`,
+  `against_advice`, `death`), `evaluation_start` (required datetime),
+  `healthprof` (readonly, but **does** get set correctly through
+  `default_get()` + `create()` — confirmed by creating a real evaluation
+  and reading `healthprof` back as the logged-in user's linked
+  professional).
+- `gnuhealth.prescription.order` + `.line`: confirmed creating an order
+  with a nested `prescription_line` `create` command works. Simplified
+  the line fields to just `medicament` (required), `short_comment`
+  (free text — doubles as dosage/frequency/indication instructions
+  instead of the ~10 separate structured fields GNU Health offers, to
+  keep the form small) and `quantity`.
+- **`gnuhealth.medicament` had zero records** even on the dev harness
+  until `health_who_essential_medicines` was activated
+  (`trytond-admin -u health_who_essential_medicines
+  --activate-dependencies`, then restart the server — same gotcha as
+  every other module activation in this project). After activating:
+  442 real drugs (halothane, oxygen, ketamine, ...). **Production needs
+  this same activation before prescriptions can work there at all** —
+  tracked in `TODO.md`.
+- **Real blocker found and fixed in `gnuhealth_client.py`**: the JSON
+  encode/decode hooks only handled `date`, not `datetime` — silently
+  broken the moment this feature needed to read `evaluation_start`
+  (a datetime field). Fixed to handle both.
+- **A genuine safety gap, not a backend quirk — document this
+  prominently, don't quietly route around it**: GNU Health's
+  `gnuhealth.prescription.order` has a server-side check
+  (`check_prescription_warning`, confirmed by reading GNU Health's own
+  source inside the dev container) that blocks saving unless
+  `prescription_warning_ack` is set, **and** raises instead if
+  `pregnancy_warning` or `allergy_warning` is `True`. In Sao, those two
+  warning flags get set automatically by `on_change_patient` when a
+  patient is selected — computing whether the patient is of
+  childbearing age or has a known allergy on file. **A raw API
+  `create()` call never runs that on_change** (the same class of gotcha
+  as GNU Health's auto-patient-creation found earlier in this project).
+  So a `simple_ui`-created prescription will silently skip the
+  pregnancy/allergy warning entirely — it won't error, it just won't
+  ever warn the doctor, even if the patient genuinely has a flagged
+  allergy on file. `simple_ui`'s create sets
+  `prescription_warning_ack=True` unconditionally to get past the
+  generic check. **This is a real limitation to fix before relying on
+  this for actual prescriptions** — e.g. by replicating the same
+  childbearing-age/allergy check server-side before creating, rather
+  than blindly acknowledging. Added to `TODO.md`.
 
-1. **Who actually uses the "Record Visit" screen?** `simple_ui` was
-   built for front-desk (registration/search only). Diagnosis and
-   prescriptions are clinical documentation — normally a doctor or
-   nurse's job, not reception's. Should this be a doctor/nurse-facing
-   addition to `simple_ui` (meaning it needs some notion of "who's
-   logged in matters" beyond just reception), or is front-desk meant to
-   transcribe from a doctor's paper notes?
-2. **Health Professional field** — tied to #1: should the logged-in
-   `simple_ui` user be required to have their own linked Health
-   Professional record (like the `admin` gotcha hit earlier), or should
-   the visit form have a doctor-selector dropdown (useful if one
-   terminal is shared by multiple staff without individual logins)?
-3. **Diagnosis: free text now, or coded (ICD-10) later?** Free text is
-   much faster to build and matches what the Info Dx tab actually does
-   today. Coded diagnosis would need a searchable autocomplete against
-   thousands of `gnuhealth.pathology` records — real extra UI work, but
-   gives structured data if reporting/analytics (or a future ABDM
-   revisit) ever matters.
-4. **Scope confirmation**: OK to build outpatient visits first and
-   defer inpatient admission until wards/beds are configured for real?
+## Verified before writing `simple_ui` code
+
+Consistent with how every other feature in this repo was built — done
+against the local Docker dev harness (`deploy/dev/`) before touching
+`simple_ui` itself, not assumed from documentation:
+1. ✅ Ran `fields_get` against `gnuhealth.patient.evaluation`,
+   `gnuhealth.prescription.order`, and `gnuhealth.prescription.line` —
+   real field names above, not guessed from UI labels.
+2. ✅ Activated `health_who_essential_medicines` in the dev harness and
+   confirmed the medicament list is actually populated (442 records).
+3. ✅ Proved the two-step create (evaluation, then prescription with a
+   nested line) end to end against the dev harness, including reading
+   the saved records back to confirm the values actually stuck.
+
+## Decisions (made 2026-11-13)
+
+1. **Who uses "Record Visit": doctors/nurses directly**, not front-desk
+   transcription. `simple_ui` now needs to support two kinds of users —
+   reception (register/search only) and clinical staff (also record
+   visits) — logging in with their own individual accounts.
+2. **Health Professional field resolves automatically from the logged-in
+   user** via `default_get()` (the same mechanism already used for the
+   South Asian ethnicity default) — **not** a doctor-selector dropdown.
+   This relies on Tryton resolving the default from the session's active
+   user, same as Sao auto-fills "Initiated by." The real consequence:
+   **every doctor/nurse needs their own GNU Health login, individually
+   linked to a Health Professional record** (Internal User field set on
+   their party) — the same one-time setup gotcha hit earlier with
+   `admin`, now needed per clinical staff member, not just once.
+3. **Diagnosis: free text for v1**, matching the Info Dx tab as-is. No
+   ICD-10 autocomplete for now.
+4. **Scope: outpatient visits only for v1.** Inpatient admission is
+   deferred until real ward/bed records exist in production.

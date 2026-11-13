@@ -80,3 +80,33 @@ be closed **before any real patient data goes in**.
 - [ ] `health_inpatient` (bed/ward management) is installed and
       activated but not configured with the actual 10-bed layout yet —
       real data entry, not scriptable in advance.
+
+## Visit/prescription recording (added 2026-11-13, see VISIT_TRACKING_DESIGN.md)
+
+- [ ] **`health_who_essential_medicines` needs activating in
+      production** (`trytond-admin -u health_who_essential_medicines
+      --activate-dependencies`, then restart `gnuhealth.service`) —
+      without it, `gnuhealth.medicament` has zero records and
+      `simple_ui`'s "Record Visit" medication rows have nothing to
+      select. Confirmed on the dev harness: 442 real drugs load after
+      activating.
+- [ ] **Real gap, not yet fixed**: `simple_ui`'s prescription creation
+      sets `prescription_warning_ack=True` unconditionally to get past
+      GNU Health's generic "has this been verified" check. The actual
+      pregnancy/allergy safety checks are normally computed by Sao's
+      `on_change_patient` (checking childbearing age / known allergies
+      on file) — a raw API `create()` never runs that, so a prescription
+      created through `simple_ui` silently skips those warnings rather
+      than ever surfacing them. Fix: replicate the same check
+      server-side (read `patient.childbearing_age` /
+      `patient.crit_allergic` before creating) rather than blindly
+      acknowledging. Don't rely on this for real prescriptions until
+      fixed.
+- [ ] Each doctor/nurse who will use "Record Visit" needs their own
+      GNU Health login individually linked to a Health Professional
+      record (Internal User field set on their party) — the
+      `healthprof` field resolves automatically via `default_get()`,
+      but only if this one-time per-person setup is done first. Same
+      gotcha as the `admin` account hit in
+      `deploy/dev/docs/recording-a-patient-visit.md`, now needed per
+      clinical staff member.

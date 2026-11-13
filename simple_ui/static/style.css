@@ -85,14 +85,25 @@ h1 { font-size: 1.6rem; margin-bottom: 1rem; }
 .form-inline label { flex: 1; min-width: 160px; }
 .form-inline label.label-wide { flex: 2.5; min-width: 240px; }
 label { display: flex; flex-direction: column; gap: 0.35rem; font-weight: 600; font-size: 0.95rem; color: var(--muted); }
-input, select {
+input, select, textarea {
     font-size: 1.05rem;
     padding: 0.6rem 0.7rem;
     border: 1px solid var(--border);
     border-radius: 8px;
     font-family: inherit;
+    resize: vertical;
 }
-input:focus, select:focus { outline: 2px solid var(--primary); border-color: var(--primary); }
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); border-color: var(--primary); }
+
+.field-hint { color: var(--muted); font-size: 0.85rem; margin: -0.5rem 0 0.5rem; }
+
+/* Record Visit: repeatable medication rows */
+.prescription-row {
+    display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end;
+    padding: 0.75rem 0; border-bottom: 1px solid var(--border);
+}
+.prescription-row label { flex: 2; min-width: 160px; }
+.prescription-row label.label-narrow { flex: 0.6; min-width: 90px; }
 
 .btn {
     display: inline-block;

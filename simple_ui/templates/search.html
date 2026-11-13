@@ -33,7 +33,10 @@
     {% if results %}
     <table class="results">
         <thead>
-            <tr><th>Name</th><th>Sex</th><th>Age</th><th>Phone</th><th>Patient ID</th></tr>
+            <tr>
+                <th>Name</th><th>Sex</th><th>Age</th><th>Phone</th><th>Patient ID</th>
+                <th>Visits</th><th>First Visit</th><th>Last Visit</th>
+            </tr>
         </thead>
         <tbody>
             {% for row in results %}
@@ -43,6 +46,9 @@
                 <td>{% if row.age_years is not none %}{{ row.age_years }} yrs{% else %}Unknown{% endif %}</td>
                 <td>{{ row.phone_display or '—' }}</td>
                 <td>{{ row.puid }}</td>
+                <td>{{ row.visit_count }}</td>
+                <td>{{ row.first_visit.strftime('%d %b %Y') if row.first_visit else '—' }}</td>
+                <td>{{ row.last_visit.strftime('%d %b %Y') if row.last_visit else '—' }}</td>
             </tr>
             {% endfor %}
         </tbody>

@@ -54,6 +54,32 @@ PARTY_DEFAULT_FIELDS = [
     "fed_country", "citizenship", "residence",
 ]
 
+# gnuhealth.patient.evaluation's discharge_reason is a required selection
+# field -- confirmed against a live instance via fields_get (see
+# VISIT_TRACKING_DESIGN.md), hardcoded here the same way AGE_BUCKETS is
+# rather than fetched fresh on every request, since these are stable
+# values baked into the GNU Health module itself, not per-hospital data.
+DISCHARGE_REASONS = [
+    ("home", "Home / Selfcare"),
+    ("transfer", "Transferred to another institution"),
+    ("against_advice", "Left against medical advice"),
+    ("death", "Death"),
+]
+
+# healthprof is readonly in the form (auto-resolved from the logged-in
+# user, the same mechanism as the ethnicity default) but evaluation_start
+# still needs a default merged in via default_get -- see
+# gnuhealth_client.py's create_with_defaults(). Confirmed both actually
+# resolve correctly through create_with_defaults() against a live
+# instance (see VISIT_TRACKING_DESIGN.md).
+VISIT_DEFAULT_FIELDS = ["evaluation_start", "healthprof"]
+PRESCRIPTION_DEFAULT_FIELDS = ["prescription_date", "healthprof"]
+
+# Fixed number of optional medication rows on the Record Visit form --
+# no JS "add another row" needed for a form this small. Each row is
+# skipped entirely if no medicament was chosen.
+PRESCRIPTION_LINE_SLOTS = 5
+
 
 def _safe_replace_year(d: datetime.date, year: int) -> datetime.date:
     """date.replace(year=...) but doesn't crash on Feb 29 in a non-leap year."""
@@ -94,6 +120,27 @@ def compute_age_years(dob: datetime.date | None, today: datetime.date | None = N
     if (today.month, today.day) < (dob.month, dob.day):
         years -= 1
     return years
+
+
+def summarize_visits(rows: list[dict]) -> dict[int, dict]:
+    """Group evaluation rows (each with 'patient' and 'evaluation_start')
+    into per-patient stats: count, first (earliest), last (latest).
+
+    Takes a flat list so the caller can fetch all matched patients'
+    evaluations in ONE batched search_read, instead of one query per
+    search result row.
+    """
+    summary: dict[int, dict] = {}
+    for row in rows:
+        patient_id = row["patient"]
+        start = row["evaluation_start"]
+        stats = summary.setdefault(patient_id, {"count": 0, "first": start, "last": start})
+        stats["count"] += 1
+        if start < stats["first"]:
+            stats["first"] = start
+        if start > stats["last"]:
+            stats["last"] = start
+    return summary
 
 
 def get_client() -> GNUHealthClient | None:
@@ -263,6 +310,29 @@ def search():
                 row["age_years"] = compute_age_years(row["party."]["dob"])
                 phones = row["party."]["contact_mechanisms."]
                 row["phone_display"] = ", ".join(cm["value"] for cm in phones) if phones else None
+
+            # One batched query for ALL matched patients' visit history,
+            # not one query per row -- see summarize_visits()'s docstring.
+            if results:
+                visit_rows = client.search_read(
+                    "gnuhealth.patient.evaluation",
+                    # The extra wrapping list is NOT optional here --
+                    # confirmed against a live instance that a bare
+                    # ["field", "in", [ids]] triple at the top level gets
+                    # misparsed (Tryton's domain parser tries to interpret
+                    # the list value itself as a nested domain), raising
+                    # "invalid literal for int() with base 10: 'AND'".
+                    # Every other domain elsewhere in this file uses a
+                    # scalar value, which doesn't hit this.
+                    [["patient", "in", [row["id"] for row in results]]],
+                    ["patient", "evaluation_start"],
+                )
+                visit_summary = summarize_visits(visit_rows)
+                for row in results:
+                    stats = visit_summary.get(row["id"])
+                    row["visit_count"] = stats["count"] if stats else 0
+                    row["first_visit"] = stats["first"] if stats else None
+                    row["last_visit"] = stats["last"] if stats else None
         except GNUHealthError as e:
             flash(f"Search failed: {e}", "error")
 
@@ -288,7 +358,143 @@ def patient_detail(patient_id: int):
 
     if not records:
         abort(404)
-    return render_template("patient_detail.html", patient=records[0])
+
+    discharge_labels = dict(DISCHARGE_REASONS)
+    try:
+        visits = client.search_read(
+            "gnuhealth.patient.evaluation", ["patient", "=", patient_id],
+            ["id", "evaluation_start", "chief_complaint", "info_diagnosis", "discharge_reason"],
+            order=[("evaluation_start", "DESC")],
+        )
+        for visit in visits:
+            visit["discharge_reason_display"] = discharge_labels.get(visit["discharge_reason"], "—")
+    except GNUHealthError as e:
+        flash(f"Could not load visit history: {e}", "error")
+        visits = []
+
+    return render_template("patient_detail.html", patient=records[0], visits=visits)
+
+
+@app.route("/patient/<int:patient_id>/visit/new", methods=["GET", "POST"])
+def record_visit(patient_id: int):
+    client = require_login()
+    try:
+        patients = client.search_read(
+            "gnuhealth.patient", ["id", "=", patient_id], ["id", "puid", "party.name"],
+        )
+    except GNUHealthError as e:
+        flash(f"Could not load patient: {e}", "error")
+        return redirect(url_for("search"))
+    if not patients:
+        abort(404)
+    patient = patients[0]
+
+    try:
+        # rec_name is a computed (Function) field -- Tryton can't ORDER BY
+        # it server-side (raises NotImplementedError), confirmed against
+        # the dev harness. Sorting ~400 rows in Python instead is cheap
+        # and avoids digging into gnuhealth.medicament's underlying
+        # product.product relation just for a sort key.
+        medicaments = client.search_read("gnuhealth.medicament", [], ["id", "rec_name"])
+        medicaments.sort(key=lambda m: m["rec_name"])
+    except GNUHealthError as e:
+        flash(f"Could not load the medication list: {e}", "error")
+        medicaments = []
+
+    form_context = dict(
+        patient=patient, discharge_reasons=DISCHARGE_REASONS, medicaments=medicaments,
+        line_slots=range(PRESCRIPTION_LINE_SLOTS),
+    )
+
+    if request.method == "GET":
+        return render_template("record_visit.html", **form_context)
+
+    chief_complaint = request.form.get("chief_complaint", "").strip()
+    present_illness = request.form.get("present_illness", "").strip()
+    info_diagnosis = request.form.get("info_diagnosis", "").strip()
+    directions = request.form.get("directions", "").strip()
+    discharge_reason = request.form.get("discharge_reason", "")
+
+    errors = []
+    if not chief_complaint:
+        errors.append("Chief complaint is required.")
+    if discharge_reason not in dict(DISCHARGE_REASONS):
+        errors.append("Discharge reason is required.")
+
+    if errors:
+        for err in errors:
+            flash(err, "error")
+        return render_template(
+            "record_visit.html", **form_context,
+            chief_complaint=chief_complaint, present_illness=present_illness,
+            info_diagnosis=info_diagnosis, directions=directions, discharge_reason=discharge_reason,
+        )
+
+    evaluation_values = {
+        "patient": patient_id,
+        "evaluation_type": "outpatient",
+        "chief_complaint": chief_complaint,
+        "discharge_reason": discharge_reason,
+    }
+    if present_illness:
+        evaluation_values["present_illness"] = present_illness
+    if info_diagnosis:
+        evaluation_values["info_diagnosis"] = info_diagnosis
+    if directions:
+        evaluation_values["directions"] = directions
+
+    try:
+        client.create_with_defaults(
+            "gnuhealth.patient.evaluation", evaluation_values, default_fields=VISIT_DEFAULT_FIELDS,
+        )
+    except GNUHealthError as e:
+        flash(f"Could not save visit: {e}", "error")
+        return render_template(
+            "record_visit.html", **form_context,
+            chief_complaint=chief_complaint, present_illness=present_illness,
+            info_diagnosis=info_diagnosis, directions=directions, discharge_reason=discharge_reason,
+        )
+
+    # Optional prescription. NOTE on prescription_warning_ack: GNU
+    # Health's own pregnancy/allergy warnings on a prescription are
+    # normally computed by Sao's on_change_patient when a patient is
+    # picked -- a raw API create() never runs that, so those warnings
+    # never fire here. prescription_warning_ack is set True to get past
+    # GNU Health's generic "has this been verified" check, NOT because
+    # the warnings were actually checked. See VISIT_TRACKING_DESIGN.md's
+    # "Real findings" section -- flagged as a real gap to close before
+    # relying on this for actual prescriptions, not something to treat
+    # as handled.
+    lines = []
+    for i in range(PRESCRIPTION_LINE_SLOTS):
+        medicament_id = request.form.get(f"medicament_{i}", "").strip()
+        if not medicament_id:
+            continue
+        line_values = {"medicament": int(medicament_id)}
+        comment = request.form.get(f"comment_{i}", "").strip()
+        if comment:
+            line_values["short_comment"] = comment
+        quantity = request.form.get(f"quantity_{i}", "").strip()
+        if quantity.isdigit():
+            line_values["quantity"] = int(quantity)
+        lines.append(line_values)
+
+    if lines:
+        try:
+            client.create_with_defaults(
+                "gnuhealth.prescription.order",
+                {
+                    "patient": patient_id,
+                    "prescription_warning_ack": True,
+                    "prescription_line": [["create", lines]],
+                },
+                default_fields=PRESCRIPTION_DEFAULT_FIELDS,
+            )
+        except GNUHealthError as e:
+            flash(f"Visit saved, but the prescription could not be saved: {e}", "error")
+
+    flash("Visit recorded.", "success")
+    return redirect(url_for("patient_detail", patient_id=patient_id))
 
 
 if __name__ == "__main__":

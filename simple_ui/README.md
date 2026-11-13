@@ -29,12 +29,29 @@ vice versa.
 - **Find Patient**: one search box (matches patient ID, phone number, or
   name — partial matches work), plus Age and Sex dropdown filters, used
   together or separately.
-- **Patient detail page**: name, PUID, sex, date of birth, phone.
+- **Patient detail page**: name, PUID, sex, date of birth, phone, plus
+  visit history (date, chief complaint, diagnosis, discharge reason).
+- **Find Patient results**: also show visit count, first visit date,
+  and last visit date per patient (one batched query, not one per row).
+- **Record Visit** (doctors/nurses — see
+  [`VISIT_TRACKING_DESIGN.md`](../VISIT_TRACKING_DESIGN.md) for the full
+  design and what was verified against a live instance before building
+  this): chief complaint, present illness, presumptive diagnosis
+  (free text), treatment plan, discharge reason, plus up to 5 optional
+  medication rows (drug, dosage/frequency/duration as free text,
+  quantity). Creates a real `gnuhealth.patient.evaluation` and, if any
+  medication rows were filled in, a `gnuhealth.prescription.order` —
+  both visible in Sao too, same as everything else this app creates.
+  **Known gap, not yet fixed**: GNU Health's pregnancy/allergy
+  prescription warnings are normally computed by Sao's on_change logic,
+  which a raw API create() never runs — so those warnings never fire
+  here. See `TODO.md`.
 
 ## What's NOT implemented yet
 
-- Recording a visit (GNU Health calls this a "Patient Evaluation") —
-  out of scope for this pivot so far; still has to be done in Sao.
+- Inpatient admission (`gnuhealth.inpatient.registration`) — deferred
+  until real ward/bed records exist in production; see
+  `VISIT_TRACKING_DESIGN.md`.
 - Editing an existing patient's details.
 - Any administrative function (that's what the full Sao UI + `admin`
   account remain for).

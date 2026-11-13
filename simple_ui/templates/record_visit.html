@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Record Visit — {{ patient['party.'].name }}{% endblock %}
+{% block content %}
+<a href="{{ url_for('patient_detail', patient_id=patient.id) }}" class="back-link">&larr; Back to patient</a>
+<h1>Record Visit — {{ patient['party.'].name }} ({{ patient.puid }})</h1>
+<form method="post" class="form">
+    <label>
+        Chief Complaint
+        <input type="text" name="chief_complaint" value="{{ chief_complaint or '' }}" autofocus required>
+    </label>
+    <label>
+        Present Illness (optional)
+        <textarea name="present_illness" rows="3">{{ present_illness or '' }}</textarea>
+    </label>
+    <label>
+        Presumptive Diagnosis (optional)
+        <textarea name="info_diagnosis" rows="2">{{ info_diagnosis or '' }}</textarea>
+    </label>
+    <label>
+        Treatment Plan (optional)
+        <textarea name="directions" rows="3">{{ directions or '' }}</textarea>
+    </label>
+    <label>
+        Discharge Reason
+        <select name="discharge_reason" required>
+            <option value="">Select...</option>
+            {% for value, label in discharge_reasons %}
+            <option value="{{ value }}" {% if discharge_reason == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </label>
+
+    <h2>Medications (optional)</h2>
+    <p class="field-hint">Leave a row's medication blank to skip it.</p>
+    {% for i in line_slots %}
+    <div class="prescription-row">
+        <label>
+            Medication
+            <select name="medicament_{{ i }}">
+                <option value="">None</option>
+                {% for med in medicaments %}
+                <option value="{{ med.id }}">{{ med.rec_name }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>
+            Dosage / frequency / duration
+            <input type="text" name="comment_{{ i }}" placeholder="e.g. 500mg, twice daily, 5 days">
+        </label>
+        <label class="label-narrow">
+            Quantity
+            <input type="number" name="quantity_{{ i }}" min="0">
+        </label>
+    </div>
+    {% endfor %}
+
+    <button type="submit" class="btn btn-primary btn-large">Save Visit</button>
+</form>
+{% endblock %}
