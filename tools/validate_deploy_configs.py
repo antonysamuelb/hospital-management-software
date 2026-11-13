@@ -82,6 +82,10 @@ def validate_simple_ui_nginx() -> None:
         "(matches simple-ui.service's gunicorn --bind)",
     )
     check("server_name" in text, f"{path}: missing server_name directive")
+    check(
+        "location /.well-known/acme-challenge/" in text,
+        f"{path}: missing ACME challenge location (certbot --nginx needs this reachable)",
+    )
 
     # The port the service binds to must match what the nginx conf proxies to.
     service_text = (ROOT / "deploy" / "systemd" / "simple-ui.service").read_text(encoding="utf-8")
