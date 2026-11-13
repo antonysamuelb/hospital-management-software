@@ -69,7 +69,9 @@ different things:
 | **Backup + restore** | `pg_dump --format=custom` on the live DB, restored into a fresh database, re-queried via a new server connection | **Passing**: the same patient (PUID, phone) was present and correct in the restored database. The exact archive filename `backup.sh` produces was also confirmed to parse correctly under `backup_retention.py`'s regex |
 | `custom_modules/health_default_ethnicity` (adds "South Asian" ethnicity, defaults new patients to it) | Activated on a **completely fresh** database (`docker compose down -v && up -d`), confirmed via API (`default_ethnic_group()` returns the right record) **and visually in the Sao UI** (new-patient dialog shows "Ethnicity: South Asian" pre-filled) | **Passing.** Wired into `deploy/dev/`'s Dockerfile/entrypoint automatically; **not yet ported to the production (non-Docker) install** — manual steps documented in `custom_modules/README.md` |
 | `deploy/nginx/gnuhealth.conf`, `deploy/provision.sh` | Structural validation (`python tools/validate_deploy_configs.py`) + `bash -n` syntax check | Passing. Still **not** run through real `nginx -t` or `provision.sh` on an actual VM — that needs the real cloud host from phase 1, not something further local testing can close |
-| `deploy/systemd/gnuhealth.service` | WSGI entry point (`trytond.application:app`) confirmed correct against the live instance | The module/callable is verified; the exact venv path still depends on how you installed (this repo's dev harness used a direct pip install, not `ghcontrol`'s own convention — noted in the file) |
+| `deploy/systemd/gnuhealth.service` | **Running for real** on the production AWS Lightsail VM (Mumbai) — `systemctl status` shows `active (running)`, `curl` to `127.0.0.1:8000/` returns `200` | **Passing.** Confirmed `ghcontrol`'s own venv (`/opt/gnuhealth/his-50/venv`) doesn't include `gunicorn` by default — had to `pip install gunicorn` into it by hand before this unit would start; WSGI target (`trytond.application:app`) also independently re-confirmed on this real install, not just the dev harness |
+| `deploy/nginx/simple-ui.conf`, `deploy/systemd/simple-ui.service` | **Running for real** on the same production VM — Nginx (plain HTTP via the VM's IP, no domain yet) → Gunicorn → `simple_ui` → GNU Health's JSON-RPC API, logged into end-to-end through an actual browser (New Registration / Find Patient landing page) | **Passing.** First time `simple_ui` has run anywhere but a local dev server. `tools/validate_deploy_configs.py` extended to check this pair the same way as the GNU Health/Sao one |
+| Sao (GNU Health's web client) on the production VM | Installed via `npm install tryton-sao` directly on the VM (not Docker this time) — logged in through a real browser as Administrator against the `ghprod` database | **Passing.** First non-Docker install of Sao, done live |
 | `scripts/backup.sh` | `bash -n` syntax check + its `pg_dump`/tar logic proven directly (see Backup+restore row) | The `rclone sync` step itself is untested (needs a real Backblaze B2 account) — `rclone` is a mature, widely-used tool, so this is a much smaller risk than the custom logic, which is now proven |
 
 To re-run all of the above yourself at any point:
@@ -102,27 +104,32 @@ would actually take.
 
 ## Next steps, in sequence
 
-### 1. Pick and provision the VM — 🔴 blocked on you (needs account creation/payment)
-- [ ] Try **Oracle Cloud "Always Free" tier** first (Mumbai region) — ARM Ampere instance, currently 2 OCPU / 12GB RAM, genuinely free forever. Note: signup approval and regional capacity aren't guaranteed.
-- [ ] In parallel, set up a **$6/month DigitalOcean droplet (Bangalore region)** or **AWS Lightsail (Mumbai)** as a cold-standby fallback — don't run it live, just keep the account ready with a recent backup so you can switch within an hour if Oracle has issues.
-- [ ] Check whether the hospital qualifies for **nonprofit cloud credits** (AWS via TechSoup, Google for Nonprofits, Microsoft nonprofit program) if it's run by a registered trust/Section 8 company/NGO — could offset costs entirely for 1–2 years.
+### 1. Pick and provision the VM — 🟢 done
+- [x] **Live**: AWS Lightsail, Mumbai region, $7/month plan. Oracle Cloud Always Free was tried first but blocked on requiring a credit card the hospital doesn't have; a fresh "advanced" AWS signup (needed for full region access — the default "simplified" signup is locked to one region) was used instead.
+- [ ] Check whether the hospital qualifies for **nonprofit cloud credits** (AWS via TechSoup, Google for Nonprofits, Microsoft nonprofit program) if it's run by a registered trust/Section 8 company/NGO — could offset costs; not pursued yet.
 
-### 2. Harden the VM — 🟡 script ready, needs the VM from step 1 to run against
-- [x] Prepared as `deploy/provision.sh`: creates a locked-down `gnuhealth` service user, installs PostgreSQL/Nginx, configures the firewall (ufw: only SSH/80/443 open), enables unattended security upgrades and fail2ban. Structurally validated, not yet run on a real host.
-- [ ] Run it: `sudo bash deploy/provision.sh` (once the VM exists).
-- [ ] Restrict SSH to your known IP(s), or set up a VPN gate.
-- [ ] (Optional but recommended) Set up **WireGuard VPN** so staff access the app through the VPN rather than the open internet — not scripted yet, flag if you want this done before go-live.
+### 2. Harden the VM — 🟢 done
+- [x] `deploy/provision.sh` **run successfully on the real VM.** Found and fixed live: Ubuntu 24.04 has no `postgresql-15` package (now auto-detects the installed version instead of hardcoding), and the script's own printed instructions had two bugs (`su - gnuhealth` needs `sudo` since the account has no password; `trytond.conf` is under `etc/`, not the venv root).
+- [x] Firewall (ufw: SSH/80/443 only), fail2ban, unattended upgrades all active on the live VM.
+- [ ] Restrict SSH to your known IP(s), or set up a VPN gate — not done yet.
+- [ ] (Optional) Set up **WireGuard VPN** so staff access the app through the VPN rather than the open internet — not scripted yet, flag if you want this done before go-live.
 
-### 3. Deploy GNU Health — 🟡 configs ready and proven in Docker; one step is inherently manual on the real VM
-- [x] `deploy/nginx/gnuhealth.conf` — reverse proxy + TLS-ready Nginx config, prepared for `certbot --nginx`.
-- [x] `deploy/systemd/gnuhealth.service` — runs trytond via Gunicorn. WSGI target (`trytond.application:app`) **confirmed correct** against a live instance.
-- [x] Confirmed the actual install (`pip install gnuhealth-all-modules`) resolves cleanly: trytond 7.0.57 + 67 `health_*` modules, and the real module names needed for `trytond-admin -u` (`health`, `health_inpatient` for bed management, etc.) — see `deploy/dev/`.
+### 3. Deploy GNU Health — 🟢 done (domain/TLS still pending)
+- [x] `deploy/nginx/gnuhealth.conf` — reverse proxy + TLS-ready Nginx config, prepared for `certbot --nginx`. Not yet installed on the VM (no domain pointed at it yet — Sao is reachable directly for now; see note below).
+- [x] `deploy/systemd/gnuhealth.service` — **installed and running on the real VM.** `systemctl status gnuhealth` shows `active (running)`; `curl 127.0.0.1:8000/` returns `200`. Found live: `ghcontrol`'s own venv doesn't include `gunicorn` — had to `pip install gunicorn` into `/opt/gnuhealth/his-50/venv` by hand first.
+- [x] Installed via `ghcontrol` (the real curses TUI, run by hand as documented) against a real PostgreSQL database named `ghprod`.
 - [x] Confirmed GNU Health auto-creates the `gnuhealth.patient` record when a party is saved with `is_patient=True` — don't create one explicitly (GNU Health will refuse it as a duplicate).
-- [x] **Web UI gap (found during testing) — now resolved.** The trytond server only serves JSON-RPC by itself; GNU Health's actual browser UI ("Sao") is a separate npm package (`tryton-sao`), not part of `gnuhealth-all-modules`. Fixed in `deploy/dev/app/Dockerfile`: a multi-stage build installs `tryton-sao@7.0.58` (npm's `series-7.0` tag, matching our trytond 7.0.57) and copies its pre-built `index.html`/`dist/*.js` into the image; `trytond.conf`'s `[web] root = ...` then serves it directly from the same port — no separate web server needed. **Proven in an actual browser**, not just curl: logged in, navigated Party → Health → Patients, and saw the real patient record (PUID `QAN111KTI`, Gender Female) rendered in the genuine GNU Health UI. Screenshot: `deploy/dev/screenshots/sao-patients-list.jpg`. Still needs porting from `deploy/dev/`'s Docker-based setup into the production `provision.sh`/`nginx`/`systemd` path (that install isn't Docker — see phase 3's other items).
-- [ ] Point a domain name at the VM (~$1/month amortized) for clean HTTPS access.
-- [ ] Run `ghcontrol` **by hand, once** — confirmed it's a curses TUI (full-screen terminal menu) with no CLI flags for unattended install, so it genuinely can't be scripted from here. Exact steps are printed at the end of `provision.sh`. (Alternative, also proven to work: install directly via `pip install gnuhealth-all-modules` + `trytond-admin -u health health_inpatient --activate-dependencies -p`, bypassing `ghcontrol` entirely — this is what `deploy/dev/` actually does.)
-- [ ] Create the initial admin user and lock down default credentials.
-- [ ] `sudo certbot --nginx -d your-domain.example`.
+- [x] **Sao (the web UI) installed directly on the VM** (not Docker this time) — `npm install tryton-sao`, `trytond.conf`'s `[web] root = ...` pointed at it, matching version to the installed trytond (`7.0.61`) looked up fresh rather than hardcoded. **Logged in through a real browser** as Administrator against `ghprod`.
+- [ ] Point a domain name at the VM (~$1/month amortized) for clean HTTPS access — currently reachable only via the bare IP over plain HTTP.
+- [ ] `sudo certbot --nginx -d your-domain.example` — blocked on the domain above.
+- [ ] Create non-admin GNU Health user accounts for actual staff.
+
+### 3b. Deploy `simple_ui` — 🟢 done (domain/TLS still pending)
+- [x] `deploy/systemd/simple-ui.service` — **installed and running on the real VM**, `gunicorn` bound to `127.0.0.1:5050`, `systemctl status` shows `active (running)`.
+- [x] `deploy/nginx/simple-ui.conf` — **installed on the real VM**, plain HTTP via the VM's IP (no domain yet), proxying to the gunicorn process above. `sudo nginx -t` passed before reload.
+- [x] **Logged into end-to-end through a real browser** — the New Registration / Find Patient landing page, reachable at `http://<VM IP>/` with no port number.
+- [ ] Domain + TLS — same blocker as phase 3. Right now login credentials go over plain HTTP to a bare IP; fine for continued testing, **not fine for real patient data or real staff passwords** — prioritize the domain/TLS step before go-live.
+- [ ] A real random `SIMPLE_UI_SECRET_KEY` was generated and installed (not the dev default) — see the systemd unit's `Environment=` line.
 
 ### 4. Backups — 🟢 proven end-to-end against real data, needs the VM + a B2 account for the offsite leg
 - [x] `scripts/backup.sh` — **rewritten** after testing revealed `ghcontrol backup` isn't a real CLI command (ghcontrol is curses-only; its own backup menu option is just `pg_dump` under the hood, confirmed by reading its source). Now does `pg_dump --format=custom` + tars the attachment directory + `rclone sync` to Backblaze B2 + retention.

@@ -263,10 +263,11 @@ VM exists and you can see real log volume).
 
 | | Status |
 |---|---|
-| GNU Health itself (install, modules, Sao, backups, patient lookup) | **Proven** — actually installed and run in Docker, every claim in steps 1–4 and 7 traces back to a real test (see main README's status table for the receipts) |
-| `simple_ui` running under gunicorn behind Nginx on a real VM | **Not yet proven** — works correctly under Flask's dev server locally (tested extensively — registration, search, filters all verified against live data), but the production WSGI/Nginx path in step 5–6 is standard practice, not something tested here |
-| The two-subdomain Nginx split | **Not yet built or tested** — a reasoned architecture choice, not a verified one |
-| Everything under "Data setup" | **Blocked on the real instance existing** — can't be done in advance |
+| GNU Health itself (install, modules, Sao, backups, patient lookup) | **Proven in Docker, and now proven for real** on the production AWS Lightsail VM (Mumbai): `ghcontrol`-driven install, `gnuhealth.service` running under systemd, Sao installed via npm and logged into through a real browser |
+| `simple_ui` running under gunicorn behind Nginx on a real VM | **Proven.** `simple-ui.service` + `simple-ui.conf` both installed and running on the same production VM; logged into end-to-end through a real browser at the VM's bare IP |
+| Domain name + TLS (HTTPS) | **Not yet done.** Both services above are only reachable over plain HTTP via the VM's raw IP right now — real login credentials are going over the open internet unencrypted. Low risk while this is just you testing; **do this before any real staff password or patient data touches the system** |
+| The two-subdomain Nginx split | **Not yet built** — currently both services were tested one at a time on plain HTTP via the bare IP, not the two-subdomain architecture described below. Revisit once a domain exists |
+| Everything under "Data setup" | **Blocked on the domain/TLS step above**, not on the instance itself — the instance exists and works now |
 
 This document exists so that when you're ready to actually provision the
 VM, there's one place that says what to do, in order, with an honest
