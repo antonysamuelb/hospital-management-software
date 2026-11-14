@@ -83,13 +83,15 @@ be closed **before any real patient data goes in**.
 
 ## Visit/prescription recording (added 2026-11-13, see VISIT_TRACKING_DESIGN.md)
 
-- [ ] **`health_who_essential_medicines` needs activating in
-      production** (`trytond-admin -u health_who_essential_medicines
-      --activate-dependencies`, then restart `gnuhealth.service`) —
-      without it, `gnuhealth.medicament` has zero records and
-      `simple_ui`'s "Record Visit" medication rows have nothing to
-      select. Confirmed on the dev harness: 442 real drugs load after
-      activating.
+- [x] ~~`health_who_essential_medicines` needs activating in
+      production~~ **Done (2026-11-14).** Turned out it wasn't even
+      `pip install`ed on production (unlike the dev harness's
+      `gnuhealth-all-modules` bundle) — `ghcontrol`'s install only
+      brought in the bare `health` module. Installed the
+      `gnuhealth-who-essential-medicines` package into
+      `/opt/gnuhealth/his-50/venv`, then activated it against `ghprod`
+      and restarted `gnuhealth.service`. Confirmed live: the medication
+      dropdown in `simple_ui`'s Record Visit form shows real drugs.
 - [ ] **Real gap, not yet fixed**: `simple_ui`'s prescription creation
       sets `prescription_warning_ack=True` unconditionally to get past
       GNU Health's generic "has this been verified" check. The actual
@@ -110,3 +112,19 @@ be closed **before any real patient data goes in**.
       gotcha as the `admin` account hit in
       `deploy/dev/docs/recording-a-patient-visit.md`, now needed per
       clinical staff member.
+- [ ] **Found during real production use**: the medication dropdown
+      shows only `rec_name` (just the drug name), but the WHO Essential
+      Medicines List has multiple real records per drug (different
+      form/strength/route — e.g. several distinct "acetylsalicylic
+      acid" records), so the same name appears several times with no
+      way to tell them apart. Fix by showing more detail in the label
+      (e.g. form + strength), not by deduplicating — they're genuinely
+      different records.
+- [ ] **No way to prescribe a drug that isn't already a
+      `gnuhealth.medicament` record** — the WHO Essential Medicines
+      List is deliberately a global minimum list, so a real hospital
+      will need drugs it doesn't cover. Right now, adding one requires
+      going into Sao (Health → Pharmacy → Medicaments) as an
+      admin/authorized user; `simple_ui` has no way to add a new
+      medicament itself. Consider a quick-add link from the Record
+      Visit form if this comes up often in practice.
