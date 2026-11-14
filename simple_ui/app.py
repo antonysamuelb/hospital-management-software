@@ -395,8 +395,23 @@ def record_visit(patient_id: int):
         # the dev harness. Sorting ~400 rows in Python instead is cheap
         # and avoids digging into gnuhealth.medicament's underlying
         # product.product relation just for a sort key.
-        medicaments = client.search_read("gnuhealth.medicament", [], ["id", "rec_name"])
-        medicaments.sort(key=lambda m: m["rec_name"])
+        #
+        # category is included because the WHO Essential Medicines List
+        # genuinely lists the same drug multiple times under different
+        # clinical-use categories (e.g. acetylsalicylic acid appears
+        # under both "Non-opioids and non-steroidal anti-inflammatory
+        # medicines" and "Antithrombotic medicines") -- confirmed
+        # against the dev harness that strength/form/route are blank
+        # for these, so category is the one field that actually
+        # distinguishes them. Without it the dropdown shows the same
+        # name several times with no way to tell them apart.
+        medicaments = client.search_read(
+            "gnuhealth.medicament", [], ["id", "rec_name", "category.name"],
+        )
+        for med in medicaments:
+            category = med["category."]["name"] if med["category."] else None
+            med["display_label"] = f"{med['rec_name']} ({category})" if category else med["rec_name"]
+        medicaments.sort(key=lambda m: m["display_label"])
     except GNUHealthError as e:
         flash(f"Could not load the medication list: {e}", "error")
         medicaments = []

@@ -112,14 +112,16 @@ be closed **before any real patient data goes in**.
       gotcha as the `admin` account hit in
       `deploy/dev/docs/recording-a-patient-visit.md`, now needed per
       clinical staff member.
-- [ ] **Found during real production use**: the medication dropdown
-      shows only `rec_name` (just the drug name), but the WHO Essential
-      Medicines List has multiple real records per drug (different
-      form/strength/route — e.g. several distinct "acetylsalicylic
-      acid" records), so the same name appears several times with no
-      way to tell them apart. Fix by showing more detail in the label
-      (e.g. form + strength), not by deduplicating — they're genuinely
-      different records.
+- [x] ~~Medication dropdown shows only `rec_name`, so duplicate drug
+      names are indistinguishable~~ **Fixed (2026-11-14).** Checked
+      form/strength/route against the dev harness first — all blank
+      for the duplicates. The real differentiator turned out to be
+      `category`: the WHO Essential Medicines List genuinely lists the
+      same drug multiple times under different clinical-use categories
+      (e.g. acetylsalicylic acid under both "Non-opioids and NSAIMs"
+      and "Antithrombotic medicines" — confirmed, not a guess).
+      `app.py`'s `record_visit()` now builds a `display_label` of
+      `"{drug} ({category})"` and sorts by it.
 - [ ] **No way to prescribe a drug that isn't already a
       `gnuhealth.medicament` record** — the WHO Essential Medicines
       List is deliberately a global minimum list, so a real hospital

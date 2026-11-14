@@ -39,7 +39,7 @@
             <select name="medicament_{{ i }}">
                 <option value="">None</option>
                 {% for med in medicaments %}
-                <option value="{{ med.id }}">{{ med.rec_name }}</option>
+                <option value="{{ med.id }}">{{ med.display_label }}</option>
                 {% endfor %}
             </select>
         </label>
